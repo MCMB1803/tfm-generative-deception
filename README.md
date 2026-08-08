@@ -25,3 +25,68 @@ tfm-generative-deception/
     ├── Dockerfile
     ├── requirements.txt
     └── main.py
+```
+
+
+## Componentes Clave
+
+* `ollama-llm`: Contenedor con el motor de inferencia local (Ollama) ejecutando modelos cuantizados ligeros (qwen2.5-coder:3b).
+* `deception-agent`: Orquestador multi-agente desarrollado en Python para gestionar la interacción entre los servicios trampa (decoys) y el LLM, midiendo tiempos de latencia.
+
+## 🚀 Requisitos Previos e Instalación
+
+### Prerrequisitos
+
+* Docker Engine (v20.10+) y Docker Compose (v2.0+).
+* Git.
+
+### Despliegue Rápido
+1. Clonar el repositorio:
+
+
+```bash
+git clone [https://github.com/MCMB1803/tfm-generative-deception.git](https://github.com/MCMB1803/tfm-generative-deception.git)
+cd tfm-generative-deception
+```
+2. Iniciar el motor de IA local (Ollama):
+
+```bash
+docker-compose up -d ollama-llm
+```
+3. Descargar el modelo cuantizado ultraligero:
+
+```bash
+docker exec -it ollama_llm ollama run qwen2.5-coder:3b
+```
+*(Escribe `/bye` y pulsa Enter una vez cargado el prompt para salir).*
+
+4. Construir y ejecutar el orquestador multi-agente (Test de Latencia):
+
+
+```bash
+docker-compose up --build deception-agent
+```
+
+## 🧪 Verificación de Latencia y Rendimiento
+El contenedor deception-agent ejecuta pruebas automáticas de simulación de comandos de consola (whoami, ls -la) enviando peticiones al LLM local para registrar la latencia de respuesta (medida en segundos).
+
+**Objetivo de rendimiento**: Mantener las respuestas por debajo de 1.000 ms para evitar que la latencia del LLM delate el entorno trampa ante un atacante.
+
+### 🗺️ Roadmap de Desarrollo
+
+- [x] Fase 1: Infraestructura base en Docker Compose con Ollama y Python Agent.
+
+- [ ] Fase 2: Implementación del servicio SSH trampa expuesto (ssh-decoy en puerto 2222).
+
+- [ ] Fase 3: Desarrollo del Agente de Artefactos e Inyección Dinámica de .bash_history y archivos trampa.
+
+- [ ] Fase 4: Integración con SIEM Open Source (Wazuh / ELK Stack) para alertado automatizado.
+
+- [ ] Fase 5: Pruebas de emulación de adversarios (Red Teaming) y medición final de latencias.
+
+---
+## ✒️ Créditos y Tutoría
+
+* **Autor:** María Celeste Montoya Bonilla
+* **Programa:** Máster en Ciberseguridad - Universidad Complutense de Madrid
+*m**Tutores:** Prof. Javier Domínguez Gómez / Prof. Román Ramírez Giménez
