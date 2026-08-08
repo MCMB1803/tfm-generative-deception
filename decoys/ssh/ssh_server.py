@@ -34,7 +34,7 @@ def query_llm(cmd_prompt):
     }
     try:
         start = time.time()
-        res = requests.post(OLLAMA_URL, json=payload, timeout=8)
+        res = requests.post(OLLAMA_URL, json=payload, timeout=5)
         elapsed = time.time() - start
         print(f"[*] Latencia LLM: {elapsed:.3f}s")
         if res.status_code == 200:
