@@ -25,6 +25,10 @@ tfm-generative-deception/
     ├── Dockerfile
     ├── requirements.txt
     └── main.py
+└── decoys/
+    ├── Dockerfile
+    ├── requirements.txt
+    └── ssh_server.py
 ```
 
 
