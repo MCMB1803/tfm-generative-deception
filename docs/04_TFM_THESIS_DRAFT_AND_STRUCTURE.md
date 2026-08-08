@@ -43,15 +43,3 @@ CAPÍTULO 5: CONCLUSIONES Y TRABAJO FUTURO
 BIBLIOGRAFÍA Y ANEXOS
 ```
 
----
-
-## Resumen del Capítulo 1
-
-### 1.1. Contexto y Planteamiento del Problema
-En el panorama actual de la ciberseguridad, las amenazas avanzadas persistentes (APTs) han evolucionado sus técnicas para evadir los controles perimetrales tradicionales. Cuando un atacante logra acceso inicial a una red corporativa, inicia una fase de reconocimiento interno y movimiento lateral. Los Centros de Operaciones de Seguridad (SOC) enfrentan altos niveles de fatiga de alertas debido a los falsos positivos generados por herramientas convencionales.
-
-### 1.2. Justificación Técnica
-Para resolver estas deficiencias, la defensa activa propone el **Ciberengaño Generativo**. Al integrar Inteligencia Artificial mediante LLMs locales aislados en contenedores Docker, es posible simular entornos interactivos creíbles que:
-1. Garantizan una tasa de falsos positivos igual a cero (cualquier acceso no autorizado a un señuelo es malicioso).
-2. Evitan el *fingerprinting* de servicios estáticos mediante la generación dinâmica de respuestas.
-3. Mantienen estricta privacidad y reproducibilidad sin depender de servicios en la nube.
