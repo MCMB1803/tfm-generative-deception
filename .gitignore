@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+
+# Docker y persistencia local
+ollama_storage/
+ollama_data/
+*.log
+
+# Variables de entorno y secretos
+.env
+*.pem
+*.key
+
+# IDEs
+.vscode/
+.idea/
