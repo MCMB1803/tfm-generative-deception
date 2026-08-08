@@ -25,6 +25,11 @@ tfm-generative-deception/
     ├── Dockerfile
     ├── requirements.txt
     └── main.py
+└── docs/
+    ├── 01_ARCHITECTURE_AND_TECHNICAL_DESIGN
+    ├── 02_DEPLOYMENT_AND_TROUBLESHOOTING_GUIDE
+    ├── 03_TEST_MATRIX_AND_LATENCY_EVALUATION
+    └── 04_TFM_THESIS_DRAFT_AND_STRUCTURE
 ```
 
 
