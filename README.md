@@ -89,4 +89,4 @@ El contenedor deception-agent ejecuta pruebas automáticas de simulación de com
 
 * **Autor:** María Celeste Montoya Bonilla
 * **Programa:** Máster en Ciberseguridad - Universidad Complutense de Madrid
-*m**Tutores:** Prof. Javier Domínguez Gómez / Prof. Román Ramírez Giménez
+* **Tutores:** Prof. Javier Domínguez Gómez / Prof. Román Ramírez Giménez
