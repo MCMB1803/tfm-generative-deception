@@ -18,3 +18,14 @@ ollama_data/
 # IDEs
 .vscode/
 .idea/
+
+# Entornos y artefactos de pruebas locales
+.venv-test/
+.localtest/
+
+# Memoria del TFM (trabajo en curso, no se publica)
+docs/memoria/
+
+# Claves de host generadas en pruebas
+ssh_host_*_key
+ssh_host_*_key.pub

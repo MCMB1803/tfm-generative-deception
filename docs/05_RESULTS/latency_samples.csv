@@ -1,0 +1,41 @@
+scenario,suite,iteration,command,technique,route,handler,server_ms,llm_ms,wall_ms,eval_tokens,within_target,fidelity_pass,fidelity_missing,output_bytes
+recon,recon,1,whoami,T1033,deterministic,whoami,0.097,0.0,6.15,0,True,True,,4
+recon,recon,1,id,T1033,deterministic,id,0.062,0.0,5.975,0,True,True,,38
+recon,recon,1,hostname,T1082,deterministic,hostname,0.044,0.0,4.579,0,True,True,,15
+recon,recon,1,uname -a,T1082,deterministic,uname,0.065,0.0,5.25,0,True,True,,115
+recon,recon,1,cat /etc/os-release,T1082,deterministic,read:cat,0.103,0.0,4.953,0,True,True,,301
+recon,recon,1,pwd,T1083,deterministic,pwd,0.055,0.0,4.817,0,True,True,,5
+recon,recon,1,ls -la,T1083,deterministic,ls,0.101,0.0,3.804,0,True,True,,305
+recon,recon,1,ls -la /var/www,T1083,deterministic,ls,0.085,0.0,2.882,0,True,True,,185
+recon,recon,1,cat /etc/passwd,T1087.001,deterministic,read:cat,0.043,0.0,2.408,0,True,True,,1078
+recon,recon,1,cat /etc/shadow,T1087.001,deterministic,read:cat,0.036,0.0,1.995,0,True,True,,884
+recon,recon,1,cat /etc/group,T1087.001,deterministic,read:cat,0.024,0.0,1.643,0,True,True,,157
+recon,recon,1,ps aux,T1057,deterministic,ps,0.039,0.0,2.422,0,True,True,,1302
+recon,recon,1,ip a,T1016,deterministic,net,0.021,0.0,1.51,0,True,True,,657
+recon,recon,1,netstat -tulpn,T1016,deterministic,net,0.022,0.0,1.405,0,True,True,,722
+recon,recon,1,cat /etc/hosts,T1016,deterministic,read:cat,0.022,0.0,1.428,0,True,True,,267
+recon,recon,1,df -h,T1082,deterministic,df,0.018,0.0,1.413,0,True,True,,380
+recon,recon,1,free -h,T1082,deterministic,free,0.018,0.0,1.397,0,True,True,,206
+recon,recon,1,history,T1552.001,deterministic,history,0.044,0.0,1.386,0,True,True,,1546
+recon,recon,1,cat /root/.bash_history,T1552.001,deterministic,read:cat,0.029,0.0,1.401,0,True,True,,1058
+recon,recon,1,ls -la /root/.ssh,T1552.004,deterministic,ls,0.041,0.0,1.427,0,True,True,,377
+recon,recon,1,cat /root/.ssh/id_rsa,T1552.004,deterministic,read:cat,0.027,0.0,1.431,0,True,True,,1629
+recon,recon,1,cat /root/.my.cnf,T1552.001,deterministic,read:cat,0.029,0.0,1.454,0,True,True,,61
+recon,recon,1,crontab -l,T1053.003,deterministic,crontab,0.017,0.0,1.347,0,True,True,,146
+recon,recon,1,cat /etc/crontab,T1053.003,deterministic,read:cat,0.023,0.0,1.354,0,True,True,,258
+recon,recon,1,tail -20 /var/log/auth.log,T1005,deterministic,log,0.031,0.0,1.395,0,True,True,,2385
+recon,recon,1,cat /etc/passwd | grep bash,T1087.001,deterministic,read:cat,0.047,0.0,1.443,0,True,True,,282
+recon,recon,1,sudo -l,T1548.003,deterministic,sudo,0.02,0.0,1.584,0,True,True,,247
+recon,recon,1,which nmap,T1046,deterministic,which,0.021,0.0,1.485,0,True,True,,0
+recon,recon,1,uptime,T1082,deterministic,uptime,0.019,0.0,1.757,0,True,True,,69
+recon,recon,1,lscpu,T1082,deterministic,lscpu,0.02,0.0,1.854,0,True,True,,337
+recon,generative,1,systemctl status nginx,T1057,generative,llm_error,2051.587,2050.933,2058.096,0,False,True,,34
+recon,generative,1,journalctl -u nginx -n 10,T1005,generative,llm_error,2040.066,2039.32,2048.768,0,False,True,,35
+recon,generative,1,dpkg -l,T1082,generative,llm_error,2036.65,2036.04,2046.683,0,False,True,,29
+recon,generative,1,top -bn1,T1057,generative,llm_error,2036.664,2036.343,2041.318,0,False,True,,28
+recon,generative,1,iptables -L -n,T1016,generative,llm_error,2045.154,2044.891,2049.019,0,False,True,,33
+recon,generative,1,find /var/www -name '*.php',T1083,generative,llm_error,2029.49,2028.982,2037.417,0,False,True,,29
+recon,generative,1,du -sh /var/log,T1083,generative,llm_error,2035.847,2035.397,2041.115,0,False,True,,27
+recon,generative,1,stat /etc/passwd,T1083,generative,llm_error,2043.583,2043.407,2046.294,0,False,True,,29
+recon,generative,1,curl -I http://127.0.0.1,T1105,generative,llm_error,2038.094,2037.399,2044.533,0,False,True,,29
+recon,generative,1,apt list --installed,T1082,generative,llm_error,2026.955,2026.717,2031.133,0,False,True,,28
