@@ -19,6 +19,9 @@ ollama_data/
 .vscode/
 .idea/
 
+# Datos de ejecucion
+data/
+
 # Entornos y artefactos de pruebas locales
 .venv-test/
 .localtest/
@@ -29,3 +32,10 @@ docs/memoria/
 # Claves de host generadas en pruebas
 ssh_host_*_key
 ssh_host_*_key.pub
+
+# Resultados del banco de pruebas: se versiona la ejecucion de referencia
+# (ver benchmarks/results), no las ejecuciones intermedias.
+benchmarks/results/*
+!benchmarks/results/RESULTS.md
+!benchmarks/results/latency_samples.csv
+!benchmarks/results/latency_summary.json

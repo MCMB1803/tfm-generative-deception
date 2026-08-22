@@ -1,0 +1,62 @@
+"""Central configuration for the Generative Deception Framework.
+
+Every tunable is read from the environment so the same image can be
+redeployed with a different persona or model without a rebuild.
+"""
+import os
+
+
+def _int(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _float(name: str, default: float) -> float:
+    try:
+        return float(os.getenv(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+# --- Inference engine -------------------------------------------------------
+OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://ollama-llm:11434")
+MODEL_NAME = os.getenv("MODEL_NAME", "qwen2.5-coder:3b")
+
+# Keeps the model resident in RAM between requests. Without this Ollama
+# unloads after 5 minutes and the next command pays a multi-second reload,
+# which is the single largest source of latency outliers.
+MODEL_KEEP_ALIVE = os.getenv("MODEL_KEEP_ALIVE", "30m")
+
+# Hard ceiling on generated tokens. Real recon command output is short;
+# capping it is the cheapest latency control available.
+MAX_TOKENS = _int("MAX_TOKENS", 220)
+TEMPERATURE = _float("TEMPERATURE", 0.3)
+LLM_TIMEOUT = _float("LLM_TIMEOUT", 20.0)
+
+# --- Latency budget ---------------------------------------------------------
+# TFM performance target: an attacker must not be able to fingerprint the
+# decoy by response time. Anything above this is flagged in telemetry.
+LATENCY_TARGET_MS = _float("LATENCY_TARGET_MS", 1000.0)
+
+# --- Persona ----------------------------------------------------------------
+PERSONA_PROFILE = os.getenv("PERSONA_PROFILE", "corporate-web-server")
+PERSONA_CACHE = os.getenv("PERSONA_CACHE", "/app/data/persona.json")
+PERSONA_SEED = _int("PERSONA_SEED", 1803)
+
+# --- Telemetry --------------------------------------------------------------
+# JSON Lines, one event per line: directly ingestable by Wazuh
+# (<location> with a json decoder) or Filebeat -> Elasticsearch.
+EVENT_LOG = os.getenv("EVENT_LOG", "/app/data/logs/deception-events.jsonl")
+LATENCY_LOG = os.getenv("LATENCY_LOG", "/app/data/logs/latency.jsonl")
+
+# --- Session ----------------------------------------------------------------
+# Number of previous command/output pairs replayed to the LLM as context.
+# Higher = more coherence, more prompt tokens, more latency.
+SESSION_CONTEXT_TURNS = _int("SESSION_CONTEXT_TURNS", 6)
+SESSION_IDLE_TIMEOUT = _float("SESSION_IDLE_TIMEOUT", 1800.0)
+
+# --- Orchestrator API -------------------------------------------------------
+AGENT_API_HOST = os.getenv("AGENT_API_HOST", "0.0.0.0")
+AGENT_API_PORT = _int("AGENT_API_PORT", 8000)
