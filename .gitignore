@@ -39,3 +39,6 @@ benchmarks/results/*
 !benchmarks/results/RESULTS.md
 !benchmarks/results/latency_samples.csv
 !benchmarks/results/latency_summary.json
+!benchmarks/results/RESOURCES.md
+!benchmarks/results/resources_samples.csv
+!benchmarks/results/resources_summary.json
