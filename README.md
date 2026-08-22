@@ -2,23 +2,31 @@
 
 Señuelo SSH de ciberengaño dinámico guiado por una arquitectura multi-agente y un modelo de lenguaje local (Ollama), para la detección temprana de intrusiones en entornos corporativos.
 
-**Este README es la guía de reproducción.** Contiene los pasos exactos para levantar el sistema, re-ejecutar el banco de pruebas y obtener las cifras del capítulo 4 de la memoria, junto con el entorno de referencia en que se midieron y las condiciones bajo las que son —y no son— reproducibles.
+**Este README es la guía de reproducción.** Contiene los pasos exactos para levantar el sistema, re-ejecutar el banco de pruebas y obtener las cifras de la memoria, junto con el entorno de referencia en que se midieron y las condiciones bajo las que son —y no son— reproducibles.
 
 ---
 
 ## Índice
 
 1. [Qué hace el sistema](#1-qué-hace-el-sistema)
+   - [La decisión de diseño central: resolución híbrida](#la-decisión-de-diseño-central-resolución-híbrida)
 2. [Arquitectura](#2-arquitectura)
 3. [Reproducción rápida](#3-reproducción-rápida)
+   - [Requisitos](#requisitos)
+   - [Levantar la pila](#levantar-la-pila)
+   - [Comprobar que está en pie](#comprobar-que-está-en-pie)
+   - [Pruebas offline](#pruebas-offline-no-necesitan-docker-ni-ollama)
 4. [Entorno de referencia](#4-entorno-de-referencia)
 5. [Fijar las versiones](#5-fijar-las-versiones)
 6. [Re-ejecutar el banco de pruebas](#6-re-ejecutar-el-banco-de-pruebas)
+   - [Opciones](#opciones)
 7. [Qué es reproducible y qué no](#7-qué-es-reproducible-y-qué-no)
 8. [Resultados de referencia](#8-resultados-de-referencia)
 9. [Telemetría para el SOC](#9-telemetría-para-el-soc)
 10. [Estructura del repositorio](#10-estructura-del-repositorio)
 11. [Estado del proyecto](#11-estado-del-proyecto)
+- [Créditos](#créditos)
+- [Aviso](#aviso)
 
 ---
 
@@ -124,7 +132,7 @@ Toda cifra de latencia depende del hardware. Las de [§8](#8-resultados-de-refer
 | Modelo | `qwen2.5-coder:3b` |
 | Parámetros | `MAX_TOKENS=220`, `TEMPERATURE=0.3`, `SESSION_CONTEXT_TURNS=6`, `PERSONA_SEED=1803` |
 
-Que no haya GPU no es un defecto que ocultar: es la condición realista de un despliegue en un servidor corporativo cualquiera, y las cifras deben leerse así. En una máquina con CUDA la ruta generativa será sustancialmente más rápida y **los resultados de §8 no se reproducirán**; lo que debe reproducirse es la *metodología*, no el número absoluto.
+Que no haya GPU no es un defecto que ocultar: es la condición realista de un despliegue en un servidor corporativo cualquiera, y las cifras deben leerse así. En una máquina con CUDA la ruta generativa será sustancialmente más rápida y **los resultados de [§8](#8-resultados-de-referencia) no se reproducirán**; lo que debe reproducirse es la *metodología*, no el número absoluto.
 
 ---
 
@@ -175,7 +183,7 @@ El banco conduce el orquestador real a través de la API real, cronometra cada c
 | `--api` | URL (def. `http://localhost:8000`) | Dónde escucha el orquestador. |
 | `--outdir` | ruta (def. `benchmarks/results`) | Dónde escribir. |
 
-La ejecución de referencia de §8 fue `--repeat 1 --scenario recon --suite both` (40 muestras). Para la memoria conviene `--repeat 5` o más: con una sola iteración los percentiles no significan gran cosa.
+La ejecución de referencia de [§8](#8-resultados-de-referencia) fue `--repeat 1 --scenario recon --suite both` (40 muestras). Para la memoria conviene `--repeat 5` o más: con una sola iteración los percentiles no significan gran cosa.
 
 > **Regla del proyecto:** ninguna cifra entra en la memoria sin proceder de una ejecución de este banco. No se transcribe ningún número a mano. Metodología, hipótesis y matriz de comandos en [`docs/03_TEST_MATRIX_AND_LATENCY_EVALUATION.md`](docs/03_TEST_MATRIX_AND_LATENCY_EVALUATION.md).
 
@@ -194,11 +202,11 @@ Conviene ser explícito, porque el sistema tiene una parte determinista y otra e
 **No reproducible bit a bit:**
 
 - La **ruta generativa**. Corre con `TEMPERATURE=0.3` y sin semilla fijada en el modelo, de modo que el texto varía entre ejecuciones. Por eso los resultados se reportan como **distribuciones sobre N muestras** (media, mediana, desviación, p95, p99) y no como valores puntuales.
-- Las **latencias absolutas**, que dependen del hardware de §4.
+- Las **latencias absolutas**, que dependen del hardware de [§4](#4-entorno-de-referencia).
 
-**Limitación conocida y abierta.** La distribución de latencia de la ejecución de referencia es **bimodal**: ~2 ms en la ruta determinista frente a ~2.044 ms en la generativa, con desviaciones típicas de 1,6 y 7,3 ms. Ningún host real produce dos poblaciones tan limpias y tan separadas, así que un atacante que cronometre respuestas puede separar ambas rutas y deducir que hay un modelo detrás. Está documentado aquí a propósito, no escondido: es el problema que aborda la fase de normalización de latencia (§11), y la métrica correcta no es «media por debajo de 1.000 ms» sino «un atacante no puede separar las dos rutas por tiempo», contrastable con un test estadístico.
+**Limitación conocida y abierta.** La distribución de latencia de la ejecución de referencia es **bimodal**: ~2 ms en la ruta determinista frente a ~2.044 ms en la generativa, con desviaciones típicas de 1,6 y 7,3 ms. Ningún host real produce dos poblaciones tan limpias y tan separadas, así que un atacante que cronometre respuestas puede separar ambas rutas y deducir que hay un modelo detrás. Está documentado aquí a propósito, no escondido: es el problema que aborda la fase de normalización de latencia ([§11](#11-estado-del-proyecto)), y la métrica correcta no es «media por debajo de 1.000 ms» sino «un atacante no puede separar las dos rutas por tiempo», contrastable con un test estadístico.
 
-**Sobre la métrica de fidelidad.** El `fidelity_pass_pct` que aparece en `RESULTS.md` es una **comprobación de subcadenas** contra una lista de tokens esperados escrita a mano (`benchmarks/latency_benchmark.py:146`). Es reproducible por un tercero y sirve como prueba de regresión, pero **no mide que el engaño resulte creíble**: para la ruta determinista, que genera esas salidas desde plantillas, un 100 % es casi tautológico. La evaluación de credibilidad requiere adversario y juez ciego, que es la fase pendiente de §11.
+**Sobre la métrica de fidelidad.** El `fidelity_pass_pct` que aparece en `RESULTS.md` es una **comprobación de subcadenas** contra una lista de tokens esperados escrita a mano (`benchmarks/latency_benchmark.py:146`). Es reproducible por un tercero y sirve como prueba de regresión, pero **no mide que el engaño resulte creíble**: para la ruta determinista, que genera esas salidas desde plantillas, un 100 % es casi tautológico. La evaluación de credibilidad requiere adversario y juez ciego, que es la fase pendiente de [§11](#11-estado-del-proyecto).
 
 ---
 
@@ -214,7 +222,7 @@ Ejecución del **2026-08-22T15:41:31Z**, 40 muestras, objetivo de latencia 1.000
 
 Reparto: 75 % de los comandos por la ruta determinista, 25 % por la generativa.
 
-La ruta generativa **incumple el objetivo en el 100 % de las muestras**. Léase junto a la limitación conocida de §7: es el punto de partida del trabajo pendiente, no un resultado que el proyecto dé por bueno.
+La ruta generativa **incumple el objetivo en el 100 % de las muestras**. Léase junto a la limitación conocida de [§7](#7-qué-es-reproducible-y-qué-no): es el punto de partida del trabajo pendiente, no un resultado que el proyecto dé por bueno.
 
 ---
 
@@ -238,7 +246,7 @@ Los eventos se escriben en el volumen `agent_data`:
 docker compose exec deception-agent tail -f /app/data/logs/deception-events.jsonl
 ```
 
-Reglas de correlación y configuración de ingesta en [`docs/05_SIEM_INTEGRATION.md`](docs/05_SIEM_INTEGRATION.md). **El SIEM está especificado y provisto, pero no desplegado ni validado**: las reglas están escritas y el formato de evento se diseñó para ingesta directa, pero el envío real a un Wazuh en producción, el disparo de las reglas y su visualización en el panel siguen pendientes (§11).
+Reglas de correlación y configuración de ingesta en [`docs/05_SIEM_INTEGRATION.md`](docs/05_SIEM_INTEGRATION.md). **El SIEM está especificado y provisto, pero no desplegado ni validado**: las reglas están escritas y el formato de evento se diseñó para ingesta directa, pero el envío real a un Wazuh en producción, el disparo de las reglas y su visualización en el panel siguen pendientes ([§11](#11-estado-del-proyecto)).
 
 ---
 
@@ -270,7 +278,7 @@ tfm-generative-deception/
 - [x] **Agentes de persona y artefactos** — sistema de ficheros virtual, honeytokens, `.bash_history` generado, simulación de tráfico.
 - [x] **Telemetría** — JSON Lines con mapeo MITRE ATT&CK y severidad; reglas de Wazuh **escritas**.
 - [ ] **Despliegue del SIEM** — Wazuh en el compose, ingesta real y validación de las reglas en el panel.
-- [ ] **Normalización de latencia** — eliminar la bimodalidad de §7 y validar con un test estadístico que las dos rutas no son separables por tiempo. Incluye medición de consumo de CPU/RAM por contenedor.
+- [ ] **Normalización de latencia** — eliminar la bimodalidad de [§7](#7-qué-es-reproducible-y-qué-no) y validar con un test estadístico que las dos rutas no son separables por tiempo. Incluye medición de consumo de CPU/RAM por contenedor.
 - [ ] **Emulación de adversarios** — atacante LLM adaptativo y juez ciego, con transcripciones de un host real como control.
 - [ ] **Comparativa con Cowrie** — despliegue y misma batería de pruebas.
 - [ ] **Futuro** — señuelos HTTP y FTP reutilizando el mismo orquestador.
