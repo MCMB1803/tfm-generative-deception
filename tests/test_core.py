@@ -20,6 +20,7 @@ os.environ.setdefault("PERSONA_CACHE", os.path.join(tempfile.mkdtemp(), "persona
 os.environ.setdefault("EVENT_LOG", os.path.join(tempfile.mkdtemp(), "events.jsonl"))
 os.environ.setdefault("LATENCY_LOG", os.path.join(tempfile.mkdtemp(), "latency.jsonl"))
 
+from core import config                     # noqa: E402
 from core import mitre                      # noqa: E402
 from core.latency import (CLASS_PROFILE, LatencyNormalizer,  # noqa: E402
                           classify)
@@ -217,6 +218,12 @@ def main() -> int:
           classify("cat /etc/passwd | grep root") == "read_small")
     check("la recursion promueve a pesado",
           classify("ls -R /") == "heavy", classify("ls -R /"))
+    # Regresion: el flag -r solo significa recursion en algunos binarios.
+    # `uname -r` imprime la version del kernel y no cuesta nada.
+    check("uname -r no se confunde con una recursion",
+          classify("uname -r") == "read_small", classify("uname -r"))
+    check("grep -r si es una recursion",
+          classify("grep -r x /") == "heavy", classify("grep -r x /"))
     check("la ruta absoluta del binario no altera la clase",
           classify("/usr/bin/whoami") == "builtin")
     check("un comando vacio no rompe la clasificacion", classify("   ") == "builtin")
@@ -227,8 +234,11 @@ def main() -> int:
           norm.session_rtt_ms("abc") == norm.session_rtt_ms("abc"))
     check("el RTT difiere entre sesiones",
           norm.session_rtt_ms("abc") != norm.session_rtt_ms("xyz"))
-    check("el RTT es positivo y acotado",
-          0 < norm.session_rtt_ms("abc") < 1000, f"{norm.session_rtt_ms('abc'):.1f} ms")
+    # Cotas relativas a la configuracion, no absolutas: el RTT mediano es un
+    # parametro de despliegue y un umbral fijo caducaria al cambiarlo.
+    rtt = norm.session_rtt_ms("abc")
+    check("el RTT es positivo y acotado por el techo del modelo",
+          0 < rtt <= config.LATENCY_RTT_MEDIAN_MS * 8, f"{rtt:.1f} ms")
 
     # La propiedad central del modulo: el objetivo depende del comando, nunca
     # de la ruta que acabe respondiendo.
@@ -244,8 +254,13 @@ def main() -> int:
           len(set(targets)) > 150, f"{len(set(targets))} distintos de 200")
     cap = CLASS_PROFILE["list_dir"][0] * 6.0 + n2.session_rtt_ms("s1") + 1
     check("la cola esta acotada", max(targets) <= cap, f"max {max(targets):.1f} ms")
-    check("los objetivos son plausibles para un ls",
-          10 < sum(targets) / len(targets) < 400, f"{sum(targets) / len(targets):.1f} ms")
+    mean_target = sum(targets) / len(targets)
+    floor = n2.session_rtt_ms("s1")
+    check("todo objetivo incluye al menos el RTT de la sesion",
+          min(targets) >= floor, f"min {min(targets):.1f} < rtt {floor:.1f}")
+    check("el coste del comando se suma sobre el RTT",
+          floor < mean_target < floor + CLASS_PROFILE["list_dir"][0] * 6,
+          f"{mean_target:.1f} ms sobre un RTT de {floor:.1f} ms")
     check("un comando pesado apunta mas alto que un builtin",
           n2.target_ms("find / -name x", "s1")[0] > n2.target_ms("whoami", "s1")[0])
 

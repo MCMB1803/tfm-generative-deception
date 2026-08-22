@@ -22,7 +22,7 @@ def _float(name: str, default: float) -> float:
 
 # --- Inference engine -------------------------------------------------------
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://ollama-llm:11434")
-MODEL_NAME = os.getenv("MODEL_NAME", "qwen2.5-coder:3b")
+MODEL_NAME = os.getenv("MODEL_NAME", "qwen2.5-coder:0.5b")
 
 # Keeps the model resident in RAM between requests. Without this Ollama
 # unloads after 5 minutes and the next command pays a multi-second reload,
@@ -31,7 +31,7 @@ MODEL_KEEP_ALIVE = os.getenv("MODEL_KEEP_ALIVE", "30m")
 
 # Hard ceiling on generated tokens. Real recon command output is short;
 # capping it is the cheapest latency control available.
-MAX_TOKENS = _int("MAX_TOKENS", 220)
+MAX_TOKENS = _int("MAX_TOKENS", 64)
 TEMPERATURE = _float("TEMPERATURE", 0.3)
 LLM_TIMEOUT = _float("LLM_TIMEOUT", 20.0)
 
@@ -49,8 +49,8 @@ LATENCY_NORMALIZE = os.getenv("LATENCY_NORMALIZE", "true").lower() in ("1", "tru
 
 # Median round-trip time attributed to a session, and its log-normal spread.
 # Constant per session: an attacker connects over one network path.
-LATENCY_RTT_MEDIAN_MS = _float("LATENCY_RTT_MEDIAN_MS", 25.0)
-LATENCY_RTT_SIGMA = _float("LATENCY_RTT_SIGMA", 0.55)
+LATENCY_RTT_MEDIAN_MS = _float("LATENCY_RTT_MEDIAN_MS", 700.0)
+LATENCY_RTT_SIGMA = _float("LATENCY_RTT_SIGMA", 0.25)
 
 # Ceiling on a drawn target, as a multiple of its class median. Stops a single
 # outlier from being as conspicuous as the bimodality it replaced.

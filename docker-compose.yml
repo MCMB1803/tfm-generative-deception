@@ -50,11 +50,11 @@ services:
       - deception-net
     environment:
       OLLAMA_HOST: "http://ollama-llm:11434"
-      MODEL_NAME: "${MODEL_NAME:-qwen2.5-coder:3b}"
+      MODEL_NAME: "${MODEL_NAME:-qwen2.5-coder:0.5b}"
     entrypoint: ["/bin/sh", "-c"]
     command: >
-      'echo "Descargando ${MODEL_NAME:-qwen2.5-coder:3b}..." &&
-       ollama pull "${MODEL_NAME:-qwen2.5-coder:3b}" &&
+      'echo "Descargando ${MODEL_NAME:-qwen2.5-coder:0.5b}..." &&
+       ollama pull "${MODEL_NAME:-qwen2.5-coder:0.5b}" &&
        echo "Modelo listo."'
     restart: "no"
 
@@ -75,14 +75,14 @@ services:
       - agent_data:/app/data
     environment:
       OLLAMA_HOST: "http://ollama-llm:11434"
-      MODEL_NAME: "${MODEL_NAME:-qwen2.5-coder:3b}"
+      MODEL_NAME: "${MODEL_NAME:-qwen2.5-coder:0.5b}"
       LATENCY_TARGET_MS: "${LATENCY_TARGET_MS:-1000}"
       SESSION_CONTEXT_TURNS: "${SESSION_CONTEXT_TURNS:-6}"
-      MAX_TOKENS: "${MAX_TOKENS:-220}"
+      MAX_TOKENS: "${MAX_TOKENS:-64}"
       PERSONA_SEED: "${PERSONA_SEED:-1803}"
       LATENCY_NORMALIZE: "${LATENCY_NORMALIZE:-true}"
-      LATENCY_RTT_MEDIAN_MS: "${LATENCY_RTT_MEDIAN_MS:-25}"
-      LATENCY_RTT_SIGMA: "${LATENCY_RTT_SIGMA:-0.55}"
+      LATENCY_RTT_MEDIAN_MS: "${LATENCY_RTT_MEDIAN_MS:-700}"
+      LATENCY_RTT_SIGMA: "${LATENCY_RTT_SIGMA:-0.25}"
       LATENCY_TAIL_CAP: "${LATENCY_TAIL_CAP:-6}"
       LOG_LEVEL: "${LOG_LEVEL:-INFO}"
     healthcheck:

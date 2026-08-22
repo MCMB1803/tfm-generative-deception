@@ -1,64 +1,61 @@
 # Resultados medidos de latencia y fidelidad
 
-Generado automaticamente por `benchmarks/latency_benchmark.py` el 2026-08-22T15:41:31+00:00. **No editar a mano**: se regenera en cada ejecucion.
+Generado automaticamente por `benchmarks/latency_benchmark.py` el 2026-08-22T23:40:56+00:00. **No editar a mano**: se regenera en cada ejecucion.
 
-Objetivo de latencia: **1000 ms**. Muestras totales: **40**.
+Objetivo de latencia: **1000 ms**. Muestras totales: **54**.
 
 ## 1. Resumen global
 
 | Ruta | n | Media | Mediana | Desv. tip. | Min | Max | p95 | p99 | Dentro de objetivo | Fidelidad |
 |---|---|---|---|---|---|---|---|---|---|---|
-| **Global** | 40 | 512.9 ms | 2.2 ms | 895.5 ms | 1.3 ms | 2058.1 ms | 2048.8 ms | 2054.6 ms | 75.0 % | 100.0 % |
-| Determinista | 30 | 2.4 ms | 1.5 ms | 1.6 ms | 1.3 ms | 6.2 ms | 5.6 ms | 6.1 ms | 100.0 % | 100.0 % |
-| Generativa | 10 | 2044.4 ms | 2045.4 ms | 7.3 ms | 2031.1 ms | 2058.1 ms | 2054.0 ms | 2057.3 ms | 0.0 % | 100.0 % |
+| **Global** | 54 | 971.1 ms | 786.3 ms | 486.6 ms | 717.3 ms | 2970.4 ms | 1831.9 ms | 2939.1 ms | 83.3 % | 100.0 % |
+| Determinista | 27 | 855.6 ms | 781.2 ms | 158.4 ms | 718.8 ms | 1397.5 ms | 1003.6 ms | 1295.4 ms | 88.9 % | 100.0 % |
+| Generativa | 27 | 1086.6 ms | 912.0 ms | 655.7 ms | 717.3 ms | 2970.4 ms | 2829.5 ms | 2955.1 ms | 77.8 % | 100.0 % |
 
-Reparto de rutas: **75.0 %** determinista, **25.0 %** generativa.
+Reparto de rutas: **50.0 %** determinista, **50.0 %** generativa.
 
 ## 2. Detalle por comando
 
 | Comando | Tecnica ATT&CK | Ruta | n | Media | p95 | Dentro de objetivo | Fidelidad |
 |---|---|---|---|---|---|---|---|
-| `whoami` | T1033 | deterministic | 1 | 6.2 ms | 6.2 ms | 100.0 % | 100.0 % |
-| `id` | T1033 | deterministic | 1 | 6.0 ms | 6.0 ms | 100.0 % | 100.0 % |
-| `hostname` | T1082 | deterministic | 1 | 4.6 ms | 4.6 ms | 100.0 % | 100.0 % |
-| `uname -a` | T1082 | deterministic | 1 | 5.2 ms | 5.2 ms | 100.0 % | 100.0 % |
-| `cat /etc/os-release` | T1082 | deterministic | 1 | 5.0 ms | 5.0 ms | 100.0 % | 100.0 % |
-| `pwd` | T1083 | deterministic | 1 | 4.8 ms | 4.8 ms | 100.0 % | 100.0 % |
-| `ls -la` | T1083 | deterministic | 1 | 3.8 ms | 3.8 ms | 100.0 % | 100.0 % |
-| `ls -la /var/www` | T1083 | deterministic | 1 | 2.9 ms | 2.9 ms | 100.0 % | 100.0 % |
-| `cat /etc/passwd` | T1087.001 | deterministic | 1 | 2.4 ms | 2.4 ms | 100.0 % | 100.0 % |
-| `cat /etc/shadow` | T1087.001 | deterministic | 1 | 2.0 ms | 2.0 ms | 100.0 % | 100.0 % |
-| `cat /etc/group` | T1087.001 | deterministic | 1 | 1.6 ms | 1.6 ms | 100.0 % | 100.0 % |
-| `ps aux` | T1057 | deterministic | 1 | 2.4 ms | 2.4 ms | 100.0 % | 100.0 % |
-| `ip a` | T1016 | deterministic | 1 | 1.5 ms | 1.5 ms | 100.0 % | 100.0 % |
-| `netstat -tulpn` | T1016 | deterministic | 1 | 1.4 ms | 1.4 ms | 100.0 % | 100.0 % |
-| `cat /etc/hosts` | T1016 | deterministic | 1 | 1.4 ms | 1.4 ms | 100.0 % | 100.0 % |
-| `df -h` | T1082 | deterministic | 1 | 1.4 ms | 1.4 ms | 100.0 % | 100.0 % |
-| `free -h` | T1082 | deterministic | 1 | 1.4 ms | 1.4 ms | 100.0 % | 100.0 % |
-| `history` | T1552.001 | deterministic | 1 | 1.4 ms | 1.4 ms | 100.0 % | 100.0 % |
-| `cat /root/.bash_history` | T1552.001 | deterministic | 1 | 1.4 ms | 1.4 ms | 100.0 % | 100.0 % |
-| `ls -la /root/.ssh` | T1552.004 | deterministic | 1 | 1.4 ms | 1.4 ms | 100.0 % | 100.0 % |
-| `cat /root/.ssh/id_rsa` | T1552.004 | deterministic | 1 | 1.4 ms | 1.4 ms | 100.0 % | 100.0 % |
-| `cat /root/.my.cnf` | T1552.001 | deterministic | 1 | 1.5 ms | 1.5 ms | 100.0 % | 100.0 % |
-| `crontab -l` | T1053.003 | deterministic | 1 | 1.3 ms | 1.3 ms | 100.0 % | 100.0 % |
-| `cat /etc/crontab` | T1053.003 | deterministic | 1 | 1.4 ms | 1.4 ms | 100.0 % | 100.0 % |
-| `tail -20 /var/log/auth.log` | T1005 | deterministic | 1 | 1.4 ms | 1.4 ms | 100.0 % | 100.0 % |
-| `cat /etc/passwd | grep bash` | T1087.001 | deterministic | 1 | 1.4 ms | 1.4 ms | 100.0 % | 100.0 % |
-| `sudo -l` | T1548.003 | deterministic | 1 | 1.6 ms | 1.6 ms | 100.0 % | 100.0 % |
-| `which nmap` | T1046 | deterministic | 1 | 1.5 ms | 1.5 ms | 100.0 % | 100.0 % |
-| `uptime` | T1082 | deterministic | 1 | 1.8 ms | 1.8 ms | 100.0 % | 100.0 % |
-| `lscpu` | T1082 | deterministic | 1 | 1.9 ms | 1.9 ms | 100.0 % | 100.0 % |
-| `systemctl status nginx` | T1057 | generative | 1 | 2058.1 ms | 2058.1 ms | 0.0 % | 100.0 % |
-| `journalctl -u nginx -n 10` | T1005 | generative | 1 | 2048.8 ms | 2048.8 ms | 0.0 % | 100.0 % |
-| `dpkg -l` | T1082 | generative | 1 | 2046.7 ms | 2046.7 ms | 0.0 % | 100.0 % |
-| `top -bn1` | T1057 | generative | 1 | 2041.3 ms | 2041.3 ms | 0.0 % | 100.0 % |
-| `iptables -L -n` | T1016 | generative | 1 | 2049.0 ms | 2049.0 ms | 0.0 % | 100.0 % |
-| `find /var/www -name '*.php'` | T1083 | generative | 1 | 2037.4 ms | 2037.4 ms | 0.0 % | 100.0 % |
-| `du -sh /var/log` | T1083 | generative | 1 | 2041.1 ms | 2041.1 ms | 0.0 % | 100.0 % |
-| `stat /etc/passwd` | T1083 | generative | 1 | 2046.3 ms | 2046.3 ms | 0.0 % | 100.0 % |
-| `curl -I http://127.0.0.1` | T1105 | generative | 1 | 2044.5 ms | 2044.5 ms | 0.0 % | 100.0 % |
-| `apt list --installed` | T1082 | generative | 1 | 2031.1 ms | 2031.1 ms | 0.0 % | 100.0 % |
+| `whoami` | T1033 | deterministic | 3 | 801.8 ms | 933.4 ms | 100.0 % | 100.0 % |
+| `hostname` | T1082 | deterministic | 3 | 805.7 ms | 940.9 ms | 100.0 % | 100.0 % |
+| `pwd` | T1083 | deterministic | 3 | 804.7 ms | 936.9 ms | 100.0 % | 100.0 % |
+| `ps aux` | T1057 | deterministic | 3 | 827.7 ms | 974.9 ms | 66.7 % | 100.0 % |
+| `df -h` | T1082 | deterministic | 3 | 824.0 ms | 971.4 ms | 100.0 % | 100.0 % |
+| `stat /etc/passwd` | T1083 | generative | 3 | 870.2 ms | 959.3 ms | 100.0 % | 100.0 % |
 
-## 3. Fallos de fidelidad observados
+## 3. Indistinguibilidad temporal de las dos rutas
+
+La pregunta que responde este apartado no es si la latencia media cumple el objetivo, sino si un atacante que **solo cronometra respuestas** puede saber cual de las dos rutas le ha contestado. Si puede, deduce que hay un modelo de lenguaje detras y que el host es un senuelo.
+
+| Estadistico | Valor | Lectura |
+|---|---|---|
+| Kolmogorov-Smirnov D | 0.2222 | Distancia maxima entre las dos distribuciones empiricas (0 = identicas). |
+| KS p-valor | 0.465599 | Por debajo de 0,05 las rutas son estadisticamente distinguibles. |
+| AUC | 0.4993 | Acierto del mejor clasificador temporal posible (0,5 = azar). |
+| Ventaja del atacante | 0.1 % | Cuanto supera al azar. |
+| Coef. de bimodalidad | 0.852 | Por encima de 0,555 la muestra agrupada es mas compatible con dos modas que con una. |
+
+**Veredicto: INDISTINGUIBLE.** No se detecta diferencia entre las dos rutas (KS no significativo) y un clasificador temporal apenas supera el azar.
+
+Normalizacion: **7** comandos (12.96 %) excedieron su objetivo y no pudieron rellenarse, con un exceso medio de 1047.1 ms.
+
+El relleno solo puede **anadir** tiempo. Un comando cuya resolucion ya supera su objetivo no admite correccion, y esa muestra sigue siendo separable: el porcentaje de exceso es, por tanto, la medida real de si la normalizacion se sostiene.
+
+### 3.1. Por clase de comando
+
+La cifra global esta **confundida**: la ruta que toma un comando la decide el propio comando, de modo que los comandos de la ruta lenta son tambien los intrinsecamente mas costosos en un host real. Comparar solo dentro de una misma clase elimina esa confusion.
+
+| Clase | n det. | n gen. | KS D | p | AUC | Ventaja | Veredicto |
+|---|---|---|---|---|---|---|---|
+| `builtin` | 9 | 9 | 0.2222 | 0.957475 | 0.4938 | 1.2 % | INDISTINGUIBLE |
+| `heavy` | 3 | 0 | — | — | — | — | Sin comparacion: una sola ruta alcanza esta clase |
+| `proc_scan` | 12 | 6 | 1.0 | 0.000156 | 1.0 | 100.0 % | INSUFICIENTE |
+| `read_small` | 3 | 12 | 0.4167 | 0.669176 | 0.4444 | 11.1 % | INSUFICIENTE |
+
+> El contraste KS puede demostrar que dos distribuciones **diferen**, pero nunca que sean identicas. Un p-valor alto es evidencia de indistinguibilidad al tamano de muestra empleado, no una prueba.
+
+## 4. Fallos de fidelidad observados
 
 Ninguno: todas las salidas contienen los tokens esperados.

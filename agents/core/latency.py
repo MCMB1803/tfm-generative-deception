@@ -112,8 +112,12 @@ _BINARY_CLASS: dict[str, str] = {
     "pip": "heavy", "npm": "heavy", "docker": "heavy",
 }
 
-# A recursive traversal is heavy no matter which binary drives it.
-_RECURSIVE = re.compile(r"(^|\s)-[a-zA-Z]*[rR]([a-zA-Z]*)?(\s|$)")
+# A recursive traversal is heavy no matter which binary drives it -- but only
+# for binaries where -r/-R actually means recursion. Matching the flag alone
+# misfires badly: `uname -r` prints the kernel release and costs nothing.
+_RECURSIVE_BINARIES = {"ls", "cp", "mv", "rm", "chmod", "chown", "chgrp",
+                       "grep", "egrep", "fgrep", "scp", "rsync", "tree"}
+_RECURSIVE_FLAG = re.compile(r"(?:^|\s)-[a-zA-Z]*[rR][a-zA-Z]*(?:\s|$)")
 
 
 def classify(command: str) -> str:
@@ -132,9 +136,10 @@ def classify(command: str) -> str:
     binary = tokens[0].rsplit("/", 1)[-1]
     cls = _BINARY_CLASS.get(binary, "unknown")
 
-    # Recursion promotes anything into the heavy class: `ls -R /` and
-    # `grep -r / ` really are slow on a real filesystem.
-    if cls in ("list_dir", "read_small") and _RECURSIVE.search(head):
+    # Recursion promotes into the heavy class: `ls -R /` and `grep -r /`
+    # really do traverse the filesystem. Restricted to binaries where the flag
+    # means recursion, so `uname -r` is not mistaken for a traversal.
+    if binary in _RECURSIVE_BINARIES and _RECURSIVE_FLAG.search(head):
         return "heavy"
     # A traversal rooted at / is slower still, but stays inside "heavy":
     # its sigma already covers that tail.

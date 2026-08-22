@@ -93,7 +93,41 @@ GENERATIVE_SEQUENCE: list[tuple[str, str, list[str]]] = [
     ("apt list --installed",                "T1082",     []),
 ]
 
-SUITES = {"recon": RECON_SEQUENCE, "generative": GENERATIVE_SEQUENCE}
+
+# Matched pairs: within each block the commands cost a real host the same, but
+# the framework resolves half of them deterministically and half through the
+# model. This is the only suite that can actually test indistinguishability.
+#
+# The other two suites cannot: their commands split almost perfectly by route
+# (only `read_small` reaches both, with a single generative sample), so a
+# stratified comparison has nothing to compare and the global figure stays
+# confounded by the intrinsic cost of the commands themselves.
+PAIRED_SEQUENCE: list[tuple[str, str, list[str]]] = [
+    # -- builtin: near-instant on a real host ------------------------------
+    ("whoami",              "T1033",     ["root"]),      # deterministica
+    ("pwd",                 "T1083",     ["/root"]),     # deterministica
+    ("hostname",            "T1082",     []),            # deterministica
+    ("tty",                 "T1033",     []),            # generativa
+    ("umask",               "T1082",     []),            # generativa
+    ("alias",               "T1082",     []),            # generativa
+    # -- read_small: one short file read -----------------------------------
+    ("wc -l /etc/passwd",   "T1087.001", []),            # deterministica
+    ("head -3 /etc/passwd", "T1087.001", ["root"]),      # deterministica
+    ("uname -r",            "T1082",     []),            # deterministica
+    ("stat /etc/passwd",    "T1083",     []),            # generativa
+    ("file /etc/passwd",    "T1083",     []),            # generativa
+    ("printenv HOME",       "T1082",     []),            # generativa
+    # -- proc_scan: reads /proc and system tables --------------------------
+    ("ps aux",              "T1057",     []),            # deterministica
+    ("df -h",               "T1082",     []),            # deterministica
+    ("free -m",             "T1082",     []),            # deterministica
+    ("ss -tulpn",           "T1049",     []),            # generativa
+    ("lsblk",               "T1082",     []),            # generativa
+    ("vmstat 1 1",          "T1082",     []),            # generativa
+]
+
+SUITES = {"recon": RECON_SEQUENCE, "generative": GENERATIVE_SEQUENCE,
+          "paired": PAIRED_SEQUENCE}
 
 
 class BenchmarkClient:
@@ -456,9 +490,13 @@ def main() -> int:
     parser.add_argument("--repeat", type=int, default=3,
                         help="iteraciones completas de la secuencia")
     parser.add_argument("--scenario", choices=["recon", "cold", "both"], default="recon")
-    parser.add_argument("--suite", choices=["recon", "generative", "both"], default="both",
-                        help="bateria de comandos: reconocimiento (ruta determinista), "
-                             "generativa (ruta LLM) o ambas")
+    parser.add_argument("--suite",
+                        choices=["recon", "generative", "both", "paired", "all"],
+                        default="both",
+                        help="bateria de comandos: recon (ruta determinista), "
+                             "generative (ruta LLM), both, paired (pares del mismo "
+                             "coste real por ambas rutas: la unica que permite "
+                             "contrastar indistinguibilidad) o all")
     parser.add_argument("--outdir", default="benchmarks/results")
     parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args()
@@ -475,7 +513,12 @@ def main() -> int:
           f"({stats['persona']['source']}) | objetivo: {target_ms:.0f} ms\n")
 
     scenarios = ["recon", "cold"] if args.scenario == "both" else [args.scenario]
-    suites = ["recon", "generative"] if args.suite == "both" else [args.suite]
+    if args.suite == "both":
+        suites = ["recon", "generative"]
+    elif args.suite == "all":
+        suites = ["recon", "generative", "paired"]
+    else:
+        suites = [args.suite]
     samples: list[dict[str, Any]] = []
     for scenario in scenarios:
         samples += run_scenario(client, scenario, args.repeat, not args.quiet, suites)
