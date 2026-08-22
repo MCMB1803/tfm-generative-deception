@@ -1,31 +1,118 @@
-version: '3.8'
+# Generative Deception Framework - TFM UCM
+#
+# Topologia: el senuelo SSH es el unico servicio publicado al exterior.
+# El orquestador y el motor de inferencia viven solo en la red interna
+# `deception-net` y no son alcanzables desde la red del atacante.
 
 networks:
   deception-net:
     driver: bridge
 
+volumes:
+  ollama_data:
+  agent_data:
+  decoy_data:
+
 services:
+  # --- Motor de inferencia local -------------------------------------------
   ollama-llm:
     image: ollama/ollama:latest
     container_name: ollama_llm
+    # Publicado solo en loopback: necesario para el benchmark desde el host,
+    # nunca expuesto a la red externa.
     ports:
-      - "11434:11434"
+      - "127.0.0.1:11434:11434"
     volumes:
       - ollama_data:/root/.ollama
     networks:
       - deception-net
+    environment:
+      # Mantiene el modelo residente: evita recargas de varios segundos que
+      # dispararian la latencia por encima del objetivo de 1000 ms.
+      OLLAMA_KEEP_ALIVE: "30m"
+      OLLAMA_NUM_PARALLEL: "2"
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
     restart: unless-stopped
 
+  # --- Descarga del modelo (job de un solo uso) ----------------------------
+  model-puller:
+    image: ollama/ollama:latest
+    container_name: ollama_model_puller
+    depends_on:
+      ollama-llm:
+        condition: service_healthy
+    networks:
+      - deception-net
+    environment:
+      OLLAMA_HOST: "http://ollama-llm:11434"
+      MODEL_NAME: "${MODEL_NAME:-qwen2.5-coder:3b}"
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      'echo "Descargando ${MODEL_NAME:-qwen2.5-coder:3b}..." &&
+       ollama pull "${MODEL_NAME:-qwen2.5-coder:3b}" &&
+       echo "Modelo listo."'
+    restart: "no"
+
+  # --- Orquestador multi-agente --------------------------------------------
+  deception-agent:
+    build: ./agents
+    container_name: deception_agent
+    depends_on:
+      model-puller:
+        condition: service_completed_successfully
+    networks:
+      - deception-net
+    # Publicado solo en loopback del host para que el benchmark pueda medir
+    # la API. Nunca accesible desde la red del atacante.
+    ports:
+      - "127.0.0.1:${AGENT_API_PORT:-8000}:8000"
+    volumes:
+      - agent_data:/app/data
+    environment:
+      OLLAMA_HOST: "http://ollama-llm:11434"
+      MODEL_NAME: "${MODEL_NAME:-qwen2.5-coder:3b}"
+      LATENCY_TARGET_MS: "${LATENCY_TARGET_MS:-1000}"
+      SESSION_CONTEXT_TURNS: "${SESSION_CONTEXT_TURNS:-6}"
+      MAX_TOKENS: "${MAX_TOKENS:-220}"
+      PERSONA_SEED: "${PERSONA_SEED:-1803}"
+      LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+    healthcheck:
+      test: ["CMD-SHELL",
+             "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=3).status==200 else 1)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    restart: unless-stopped
+
+  # --- Senuelo SSH (unico servicio expuesto) -------------------------------
   ssh-decoy:
     build: ./decoys/ssh
     container_name: honeypot_ssh
-    ports:
-      - "2222:22"
     depends_on:
-      - ollama-llm
+      deception-agent:
+        condition: service_healthy
+    ports:
+      - "${DECOY_SSH_PORT:-2222}:2222"
     networks:
       - deception-net
+    volumes:
+      - decoy_data:/app/data
+    environment:
+      AGENT_API: "http://deception-agent:8000"
+      # Puerto no privilegiado: permite cap_drop ALL sin CAP_NET_BIND_SERVICE.
+      LISTEN_PORT: "2222"
+      LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+    # Contencion: el senuelo es el componente expuesto, asi que corre sin
+    # capacidades adicionales y con el sistema de ficheros en solo lectura
+    # salvo el volumen de datos.
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     restart: unless-stopped
-
-volumes:
-  ollama_data:

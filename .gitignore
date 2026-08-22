@@ -18,3 +18,14 @@ ollama_data/
 # IDEs
 .vscode/
 .idea/
+
+# Resultados de benchmark (se regeneran; el RESULTS.md si se versiona)
+benchmarks/results/*.csv
+benchmarks/results/*.json
+
+# Datos de ejecucion
+data/
+
+# Entorno y artefactos de prueba local
+.venv-test/
+.localtest/

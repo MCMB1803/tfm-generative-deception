@@ -2,7 +2,7 @@
 
 ## Datos del Proyecto
 * **Título:** Ciberengaño Dinámico Multi-Agente con IA (Generative Deception)
-* **Autor:** María
+* **Autora:** María Celeste Montoya Bonilla
 * **Titulación:** Máster en Ciberseguridad - Universidad Complutense de Madrid (UCM)
 * **Tutores:** Prof. Javier Domínguez Gómez / Prof. Román Ramírez Giménez
 
@@ -43,3 +43,34 @@ CAPÍTULO 5: CONCLUSIONES Y TRABAJO FUTURO
 BIBLIOGRAFÍA Y ANEXOS
 ```
 
+
+
+---
+
+## Correspondencia entre la Implementación y la Memoria
+
+Qué fichero del repositorio respalda cada apartado. Útil para el tribunal y para no dejar afirmaciones sin evidencia.
+
+| Apartado de la memoria | Respaldo en el repositorio |
+|---|---|
+| 1.2 Ciberengaño generativo | `agents/roles/terminal.py` — resolución híbrida |
+| 1.2 Cero falsos positivos | `agents/roles/artifacts.py` — honeytokens; `docs/03` §6 — condiciones de contorno |
+| 1.4.1 (2) Señuelo SSH | `decoys/ssh/ssh_server.py` |
+| 1.4.1 (3) Motor local offline | `agents/core/llm.py`, `docker-compose.yml` |
+| 1.4.1 (4) Optimización de latencia | `agents/core/config.py` (`MAX_TOKENS`, `keep_alive`, `SESSION_CONTEXT_TURNS`) |
+| 1.4.1 (5) Alineación MITRE ATT&CK | `agents/core/mitre.py` |
+| 1.4.1 (6) Infraestructura reproducible | `docker-compose.yml`, `.env.example` |
+| 1.4.2 Estado en ámbito de sesión | `agents/core/session.py` |
+| 3.x Arquitectura | `docs/01_ARCHITECTURE_AND_TECHNICAL_DESIGN.md` |
+| 4.2 Análisis de latencia | `benchmarks/results/RESULTS.md` (generado) |
+| 4.3 Validación de fidelidad | `benchmarks/latency_benchmark.py`, `tests/test_core.py` |
+| Objetivo específico: SIEM | `docs/05_SIEM_INTEGRATION.md` |
+
+## Pendiente antes de la Entrega
+
+1. **Ejecutar el banco de pruebas en el hardware definitivo** y documentar CPU, RAM y si hay GPU. Las cifras del capítulo 4 deben salir de ahí.
+2. **Capítulo 2 (Estado del Arte)** sigue sin redactar: Cowrie, Dionaea, HoneyGPT, LLM-based deception, Thinkst Canary, tecnología de deception comercial.
+3. **Apartado 4.4**: si el calendario lo permite, desplegar Cowrie y pasarle el mismo banco de pruebas para que la comparativa sea medida y no cualitativa.
+4. **Fase 5 (Red Teaming)**: la emulación con operador humano queda pendiente; si no se hace, declararlo como limitación en lugar de omitirlo.
+5. **Validar la integración con Wazuh** (`docs/05` §7) o reportarla explícitamente como especificada y no verificada.
+6. Corregir la numeración `1.4.1`, etiquetada «Limitaciones» cuando su contenido es el **Alcance**.

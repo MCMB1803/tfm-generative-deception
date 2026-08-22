@@ -1,108 +1,198 @@
 # 02. Guía de Despliegue, Configuración y Troubleshooting
 
-## 1. Requisitos del Sistema
+## 1. Requisitos
 
-### Hardware Recomendado
-* **CPU:** 4 núcleos x86_64 / ARM64.
-* **RAM:** Mínimo 8 GB (Recomendado 16 GB para ejecución fluida de Ollama en memoria).
-* **Almacenamiento:** 10 GB de espacio libre en disco SSD.
+### Hardware
 
-### Software Requerido
-* **Docker Engine:** Version 20.10+
-* **Docker Desktop / Docker Compose:** Version 2.0+ (Sintaxis `docker compose`)
-* **Git**
-* **WSL2 (Windows Subsystem for Linux):** En entornos Windows 10/11 (Ubuntu 22.04 LTS recomendado).
+| Recurso | Mínimo | Recomendado | Nota |
+|---|---|---|---|
+| CPU | 4 núcleos x86_64 / ARM64 | 8 núcleos | La latencia de la ruta generativa depende directamente de la CPU. |
+| RAM | 8 GB | 16 GB | El modelo cuantizado ocupa ~2,5 GB residentes con `keep_alive`. |
+| Disco | 10 GB | 20 GB SSD | Imagen de Ollama + modelo + volúmenes. |
+| GPU | — | Opcional | No requerida. Con GPU la latencia generativa baja de forma sustancial; **documéntalo si la usas**, porque invalida la comparación con una ejecución en CPU. |
+
+### Software
+
+* Docker Engine 20.10+ y Docker Compose v2 (sintaxis `docker compose`, sin guion).
+* Git.
+* Python 3.10+ en el host, solo para ejecutar el banco de pruebas y la suite offline.
+* En Windows: WSL2 con Ubuntu 22.04 LTS.
 
 ---
 
-## 2. Paso a Paso para el Despliegue
+## 2. Despliegue
 
-### Paso 1: Clonar el Repositorio
+### Paso 1 — Clonar y configurar
+
 ```bash
 git clone https://github.com/MCMB1803/tfm-generative-deception.git
 cd tfm-generative-deception
+cp .env.example .env
 ```
 
-### Paso 2: Crear la Estructura de Directorios
-Asegúrate de tener la siguiente estructura de carpetas en el proyecto:
-```text
-tfm-generative-deception/
-├── docker-compose.yml
-├── .gitignore
-├── README.md
-├── agents/
-│   ├── Dockerfile
-│   ├── main.py
-│   └── requirements.txt
-├── decoys/
-│   └── ssh/
-│       ├── Dockerfile
-│       ├── requirements.txt
-│       └── ssh_server.py
-└── docs/
-    ├── 01_ARQUITECTURA_Y_DISENO.md
-    ├── 02_GUIA_DE_DESPLIEGUE.md
-    ├── 03_MATRIZ_DE_PRUEBAS_Y_LATENCIA.md
-    └── 04_MEMORIA_TFM_ESTRUCTURA.md
-```
+Edita `.env` si quieres cambiar el modelo, el objetivo de latencia o los puertos. Los valores por defecto funcionan sin tocar nada.
 
-### Paso 3: Desplegar la Infraestructura con Docker Compose
-Abre tu consola de comandos (PowerShell / WSL / Terminal Linux) en la raíz del repositorio y ejecuta:
+> **`.env` está en `.gitignore` y debe seguir estándolo.** Nunca guardes tokens ni credenciales reales en él.
+
+### Paso 2 — Levantar la pila
 
 ```bash
 docker compose up -d --build
 ```
 
-### Paso 4: Descargar el Modelo de IA Local
-Ejecuta el siguiente comando para descargar el modelo `qwen2.5-coder:3b` dentro del contenedor de Ollama (solo se requiere la primera vez):
+Un único comando levanta todo. El orden de arranque está resuelto por `depends_on` con condiciones de salud:
+
+```text
+ollama-llm  --(healthy)-->  model-puller  --(completed)-->  deception-agent  --(healthy)-->  ssh-decoy
+```
+
+`model-puller` descarga `qwen2.5-coder:3b` automáticamente y termina. **La primera ejecución tarda varios minutos** mientras se descargan ~2 GB de modelo; las siguientes son inmediatas porque el volumen `ollama_data` persiste.
+
+### Paso 3 — Verificar
 
 ```bash
-docker exec -it ollama_llm ollama run qwen2.5-coder:3b
+# Progreso de la descarga del modelo
+docker compose logs -f model-puller
+
+# Estado del orquestador: persona generada, artefactos, honeytokens
+curl -s http://127.0.0.1:8000/stats | python -m json.tool
+
+# Identidad completa que ha asumido el señuelo
+curl -s http://127.0.0.1:8000/persona | python -m json.tool
 ```
-*Cuando se complete la descarga y aparezca el símbolo `>>>`, escribe `/bye` y pulsa Enter para salir.*
 
----
+`"ready": true` en `/stats` indica que los cuatro agentes han arrancado.
 
-## 3. Pruebas de Funcionamiento
+### Paso 4 — Probar el señuelo
 
-### Prueba 1: Conexión SSH a la Trampa
-Conéctate desde una terminal secundaria al puerto 2222:
 ```bash
 ssh root@localhost -p 2222
+# Contraseña: cualquiera. Se acepta todo y se registra.
 ```
-* **Contraseña:** Introduce cualquier cadena (ej. `admin123`).
-* **Ejecución de Comandos:** Prueba `whoami`, `cat /etc/passwd`, `ls -la /var/www/html`.
 
-### Prueba 2: Inspección de Alertas de Red y Latencia
-Abre la consola de logs del honeypot SSH para verificar los registros de auditoría y la velocidad de respuesta:
+Dentro de la sesión, prueba la coherencia, no solo un comando suelto:
 
 ```bash
-docker compose logs -f ssh-decoy
+whoami
+cat /etc/passwd          # anota los usuarios
+ls -la /home             # deben ser los mismos usuarios
+cd /tmp && touch prueba.sh && ls -la    # el fichero debe seguir ahí
+cat /etc/passwd          # debe ser byte a byte idéntico a la primera vez
+exit
 ```
 
 ---
 
-## 4. Resolución de Problemas Frecuentes (Troubleshooting)
+## 3. Observación de la Telemetría
 
-### Error 1: `failed to dial gRPC: unable to upgrade to h2c, received 400`
-* **Causa:** Desalineación entre BuildKit y el socket de comunicación de Docker Desktop en Windows / WSL.
-* **Solución Rápida:** Desactivar BuildKit en la sesión actual:
-  * *PowerShell:* `$env:DOCKER_BUILDKIT=0`
-  * *Bash:* `export DOCKER_BUILDKIT=0`
-  * Luego ejecutar: `docker compose up -d --build`
+```bash
+# Eventos SOC en vivo
+docker compose logs -f deception-agent | grep EVENT
 
-### Error 2: `Could not resolve host: github.com` al hacer `git push`
-* **Causa:** Pérdida de resolución DNS en la instancia de WSL2.
-* **Solución:** Sobrescribir el resolvedor en WSL2:
-  ```bash
-  sudo bash -c 'echo "nameserver 8.8.8.8" > /etc/resolv.conf'
-  ```
+# Fichero JSON Lines completo
+docker compose exec deception-agent cat /app/data/logs/deception-events.jsonl
 
-### Error 3: `remote: Invalid username or token` o `403 Forbidden`
-* **Causa:** Autenticación por contraseña tradicional rechazada por GitHub.
-* **Solución:**
-  1. Generar un *Personal Access Token (PAT Classic)* en GitHub con permiso **`repo`** marcado.
-  2. Actualizar la URL remota:
-     ```bash
-     git remote set-url origin https://TU_TOKEN@github.com/MCMB1803/tfm-generative-deception.git
-     ```
+# Solo las latencias
+docker compose exec deception-agent cat /app/data/logs/latency.jsonl
+
+# Credenciales capturadas
+docker compose logs ssh-decoy | grep "ALERTA SOC"
+```
+
+Tipos de evento emitidos: `session.opened`, `auth.attempt`, `command.executed`, `session.closed`, `system.ready`, `system.latency_breach`, `system.inference_degraded`, `artifacts.built`.
+
+---
+
+## 4. Evaluación
+
+```bash
+# Suite offline de coherencia: no necesita Docker ni Ollama
+python tests/test_core.py
+
+# Banco de latencia y fidelidad (la pila debe estar levantada)
+pip install requests
+python benchmarks/latency_benchmark.py --scenario both --repeat 5
+```
+
+Resultados en `benchmarks/results/`: `latency_samples.csv` (muestras crudas), `latency_summary.json` (agregados) y `RESULTS.md` (tablas listas para el capítulo 4).
+
+---
+
+## 5. Operaciones Habituales
+
+| Acción | Comando |
+|---|---|
+| Regenerar la persona | `docker compose exec deception-agent rm /app/data/persona.json && docker compose restart deception-agent` |
+| Cambiar de modelo | Editar `MODEL_NAME` en `.env` y `docker compose up -d --force-recreate` |
+| Reiniciar solo el señuelo | `docker compose restart ssh-decoy` |
+| Parar todo conservando datos | `docker compose down` |
+| Borrar todo, modelo incluido | `docker compose down -v` |
+| Ver modelos descargados | `docker compose exec ollama-llm ollama list` |
+
+---
+
+## 6. Troubleshooting
+
+### `failed to dial gRPC: unable to upgrade to h2c, received 400`
+Desalineación entre BuildKit y el socket de Docker Desktop en Windows/WSL.
+```bash
+export DOCKER_BUILDKIT=0          # PowerShell: $env:DOCKER_BUILDKIT=0
+docker compose up -d --build
+```
+
+### `deception-agent` se queda en `starting`
+El bootstrap espera a Ollama. Es normal durante la primera descarga.
+```bash
+docker compose logs model-puller     # ¿terminó la descarga?
+docker compose logs deception-agent  # ¿qué está esperando?
+```
+Si el modelo no llegó a descargarse, fuerza la descarga a mano:
+```bash
+docker compose exec ollama-llm ollama pull qwen2.5-coder:3b
+docker compose restart deception-agent
+```
+
+### La persona sale con nombres genéricos (`srv-web-prod-02`, «Distribuciones Arganzuela»)
+Es el **perfil de reserva**: significa que el LLM no estaba disponible o devolvió un JSON inválido cuando se generó la persona. Confírmalo:
+```bash
+curl -s http://127.0.0.1:8000/stats | grep -i source   # "fallback" vs "llm"
+```
+Solución: asegúrate de que el modelo está descargado, borra `persona.json` y reinicia el agente.
+
+### Latencias muy por encima de 1.000 ms en la ruta generativa
+Por orden de impacto:
+1. **El modelo se descargó de RAM.** `OLLAMA_KEEP_ALIVE=30m` lo evita; verifica que la variable llegó al contenedor.
+2. **Contexto demasiado largo.** Baja `SESSION_CONTEXT_TURNS` de 6 a 3 en `.env`.
+3. **Salida demasiado larga.** Baja `MAX_TOKENS` de 220 a 150.
+4. **CPU insuficiente.** Es el límite duro. Documenta el hardware en la memoria en lugar de ocultar el resultado.
+
+### El cliente SSH avisa de cambio de clave de host
+Solo debería ocurrir si se borró el volumen `decoy_data`. La clave se persiste precisamente para evitarlo.
+```bash
+ssh-keygen -R "[localhost]:2222"
+```
+
+### `Permission denied` al escribir la clave de host
+El volumen `decoy_data` no se montó. Comprueba `docker compose config` y que la sección `volumes` del servicio esté presente.
+
+### `Could not resolve host: github.com` en WSL2
+```bash
+sudo bash -c 'echo "nameserver 8.8.8.8" > /etc/resolv.conf'
+```
+
+### `remote: Invalid username or token` al hacer push
+Genera un *Personal Access Token* con permiso `repo` y configura el remoto. **No incrustes el token en la URL del remoto ni lo guardes en `.env`**: usa el gestor de credenciales de Git.
+```bash
+git config --global credential.helper store   # o 'manager' en Windows
+git push    # pedirá usuario y token una sola vez
+```
+
+---
+
+## 7. Seguridad Operativa del Despliegue
+
+1. **Nunca despliegues esto en un segmento de producción sin aislamiento de red.** El señuelo acepta todas las credenciales por diseño.
+2. **El volumen `agent_data` contiene credenciales en claro** capturadas del atacante. Trátalo con el control de acceso de una fuente de telemetría del SOC.
+3. **No publiques los puertos 8000 ni 11434** más allá de loopback. La configuración por defecto ya los restringe a `127.0.0.1`.
+4. **Los honeytokens deben registrarse en el SIEM.** Su valor está en detectar su uso *fuera* del señuelo. Obtén la lista con `curl -s http://127.0.0.1:8000/stats`.
+5. Para un despliegue real, sitúa el señuelo en una VLAN sin rutas hacia sistemas productivos.
