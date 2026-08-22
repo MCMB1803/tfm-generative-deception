@@ -21,6 +21,8 @@ os.environ.setdefault("EVENT_LOG", os.path.join(tempfile.mkdtemp(), "events.json
 os.environ.setdefault("LATENCY_LOG", os.path.join(tempfile.mkdtemp(), "latency.jsonl"))
 
 from core import mitre                      # noqa: E402
+from core.latency import (CLASS_PROFILE, LatencyNormalizer,  # noqa: E402
+                          classify)
 from core.llm import LLMResponse            # noqa: E402
 from core.session import SessionStore       # noqa: E402
 from roles.artifacts import ArtifactAgent   # noqa: E402
@@ -202,6 +204,77 @@ def main() -> int:
     check("nmap no existe en el senuelo", "command not found" in r.output, r.output)
     check("los binarios ausentes son deterministas", r.route == "deterministic")
 
+    print("\n== Clasificacion por coste de comando ==")
+    check("whoami es un builtin", classify("whoami") == "builtin", classify("whoami"))
+    check("cat /etc/passwd es una lectura pequena",
+          classify("cat /etc/passwd") == "read_small", classify("cat /etc/passwd"))
+    check("ps aux recorre /proc", classify("ps aux") == "proc_scan", classify("ps aux"))
+    check("find / es pesado", classify("find / -name x") == "heavy",
+          classify("find / -name x"))
+    check("un binario desconocido cae en unknown",
+          classify("zzzfoo --bar") == "unknown", classify("zzzfoo --bar"))
+    check("la clase la fija el primer segmento de la tuberia",
+          classify("cat /etc/passwd | grep root") == "read_small")
+    check("la recursion promueve a pesado",
+          classify("ls -R /") == "heavy", classify("ls -R /"))
+    check("la ruta absoluta del binario no altera la clase",
+          classify("/usr/bin/whoami") == "builtin")
+    check("un comando vacio no rompe la clasificacion", classify("   ") == "builtin")
+
+    print("\n== Normalizacion de latencia ==")
+    norm = LatencyNormalizer(seed=1803)
+    check("el RTT es constante dentro de una sesion",
+          norm.session_rtt_ms("abc") == norm.session_rtt_ms("abc"))
+    check("el RTT difiere entre sesiones",
+          norm.session_rtt_ms("abc") != norm.session_rtt_ms("xyz"))
+    check("el RTT es positivo y acotado",
+          0 < norm.session_rtt_ms("abc") < 1000, f"{norm.session_rtt_ms('abc'):.1f} ms")
+
+    # La propiedad central del modulo: el objetivo depende del comando, nunca
+    # de la ruta que acabe respondiendo.
+    a = LatencyNormalizer(seed=99)
+    b = LatencyNormalizer(seed=99)
+    check("misma semilla, misma secuencia de objetivos",
+          [a.target_ms(c, "s1")[0] for c in ("ls", "ps", "find /")] ==
+          [b.target_ms(c, "s1")[0] for c in ("ls", "ps", "find /")])
+
+    n2 = LatencyNormalizer(seed=7)
+    targets = [n2.target_ms("ls", "s1")[0] for _ in range(200)]
+    check("un mismo comando no tarda siempre exactamente lo mismo",
+          len(set(targets)) > 150, f"{len(set(targets))} distintos de 200")
+    cap = CLASS_PROFILE["list_dir"][0] * 6.0 + n2.session_rtt_ms("s1") + 1
+    check("la cola esta acotada", max(targets) <= cap, f"max {max(targets):.1f} ms")
+    check("los objetivos son plausibles para un ls",
+          10 < sum(targets) / len(targets) < 400, f"{sum(targets) / len(targets):.1f} ms")
+    check("un comando pesado apunta mas alto que un builtin",
+          n2.target_ms("find / -name x", "s1")[0] > n2.target_ms("whoami", "s1")[0])
+
+    print("\n== Relleno y desbordes ==")
+    n3 = LatencyNormalizer(seed=5)
+    res = n3.settle("whoami", "s1", elapsed_ms=0.5, route="deterministic")
+    check("una respuesta rapida se rellena", res.slept_ms > 0)
+    check("una respuesta rapida no cuenta como desborde", not res.overrun)
+    res2 = n3.settle("zzz", "s1", elapsed_ms=9999.0, route="generative")
+    check("una respuesta lenta se marca como desborde", res2.overrun)
+    check("una respuesta lenta no se rellena", res2.slept_ms == 0.0)
+    check("el desborde queda contabilizado", n3.stats.overruns == 1)
+    check("el desborde se atribuye a su ruta",
+          n3.stats.overruns_by_route.get("generative") == 1)
+    check("la telemetria de normalizacion expone la clase",
+          res.as_telemetry()["cmd_class"] == "builtin")
+
+    print("\n== Cache de la ruta generativa ==")
+    sess2 = store.create("10.42.99.98", 4242)
+    calls_before = StubLLM.calls
+    sess2.gen_cache[(sess2.cwd, "zzz")] = "salida cacheada"
+    r = terminal.resolve(sess2, "zzz")
+    check("un comando ya respondido sale de la cache",
+          r.output == "salida cacheada", r.output)
+    check("el acierto de cache se identifica", r.handler == "llm_cache", r.handler)
+    check("el acierto de cache no llama al modelo", StubLLM.calls == calls_before,
+          f"{StubLLM.calls} vs {calls_before}")
+    sess2.add_file("/root/nuevo.txt", "x")
+    check("una escritura invalida la cache", not sess2.gen_cache)
     print("\n" + "=" * 60)
     total = PASSED + len(FAILED)
     print(f"{PASSED}/{total} comprobaciones superadas")

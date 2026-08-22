@@ -489,6 +489,17 @@ class TerminalAgent:
 
     # -- generative layer --------------------------------------------------
     def _generative(self, session: Session, command: str) -> TerminalResult:
+        # A command already answered this session, over filesystem state that
+        # has not changed since, must answer identically -- that is what a real
+        # host does. Re-querying the model would produce a slightly different
+        # answer each time, which is the incoherence the whole design exists to
+        # avoid; it would also pay for inference again.
+        key = (session.cwd, command)
+        cached = session.gen_cache.get(key)
+        if cached is not None:
+            return TerminalResult(cached, "generative", handler="llm_cache",
+                                  meta={"cache": "hit"})
+
         messages = [{"role": "system",
                      "content": _SYSTEM_PROMPT.format(context=self.persona.context_block())}]
 
@@ -511,6 +522,7 @@ class TerminalAgent:
             )
 
         output = self._sanitise(response.text, command)
+        session.gen_cache[key] = output
         return TerminalResult(
             output, "generative", llm_ms=response.latency_ms,
             eval_tokens=response.eval_tokens, handler="llm",

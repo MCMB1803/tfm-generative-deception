@@ -28,11 +28,15 @@ import json
 import os
 import statistics
 import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import time
 from datetime import datetime, timezone
 from typing import Any
 
 import requests
+
+from stats import (auc_mann_whitney, bimodality_coefficient,
+                   ks_two_sample, verdict)
 
 # (command, ATT&CK id, what a correct answer must contain)
 RECON_SEQUENCE: list[tuple[str, str, list[str]]] = [
@@ -186,6 +190,13 @@ def run_scenario(client: BenchmarkClient, scenario: str, repeat: int,
                 "fidelity_pass": passed,
                 "fidelity_missing": ";".join(missing),
                 "output_bytes": len(result.get("output", "").encode()),
+                # Normalisation metadata, so the analysis can stratify by the
+                # cost class the framework assigned and count overruns.
+                "cmd_class": (result.get("normalization") or {}).get("cmd_class"),
+                "norm_target_ms": (result.get("normalization") or {}).get("norm_target_ms"),
+                "norm_slept_ms": (result.get("normalization") or {}).get("norm_slept_ms"),
+                "norm_overrun": (result.get("normalization") or {}).get("norm_overrun"),
+                "compute_ms": result.get("compute_ms"),
             })
 
             if verbose:
@@ -244,6 +255,7 @@ def summarise(samples: list[dict[str, Any]], target_ms: float) -> dict[str, Any]
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "target_ms": target_ms,
+        "indistinguishability": indistinguishability(samples),
         "overall": agg(samples),
         "deterministic": agg(deterministic),
         "generative": agg(generative),
@@ -252,6 +264,68 @@ def summarise(samples: list[dict[str, Any]], target_ms: float) -> dict[str, Any]
             "generative_pct": round(100 * len(generative) / len(samples), 1) if samples else 0,
         },
         "by_command": by_command,
+    }
+
+
+
+def indistinguishability(samples: list[dict[str, Any]]) -> dict[str, Any]:
+    """Can an attacker separate the two routes by response time?
+
+    Reported globally and, more importantly, **stratified by command class**.
+    The global figure alone is confounded: the route a command takes is decided
+    by the command itself, so slow-route commands are also the intrinsically
+    slower ones. Comparing only within a class removes that confound and
+    isolates the question that matters -- given two commands a real host would
+    answer in the same time, does the framework still answer them in different
+    times?
+    """
+    det = [s["wall_ms"] for s in samples if s["route"] == "deterministic"]
+    gen = [s["wall_ms"] for s in samples if s["route"] == "generative"]
+
+    ks, auc = ks_two_sample(det, gen), auc_mann_whitney(det, gen)
+    label, reading = verdict(ks, auc)
+
+    strata: dict[str, Any] = {}
+    classes = {s.get("cmd_class") or "sin_clasificar" for s in samples}
+    for cls in sorted(classes):
+        d = [s["wall_ms"] for s in samples
+             if s["route"] == "deterministic" and (s.get("cmd_class") or "sin_clasificar") == cls]
+        g = [s["wall_ms"] for s in samples
+             if s["route"] == "generative" and (s.get("cmd_class") or "sin_clasificar") == cls]
+        if not d or not g:
+            # Only one route reaches this class, so there is nothing to
+            # separate. Recorded so the gap is visible rather than silently
+            # dropped from the report.
+            strata[cls] = {"n_det": len(d), "n_gen": len(g), "comparable": False}
+            continue
+        k, a = ks_two_sample(d, g), auc_mann_whitney(d, g)
+        v, _ = verdict(k, a)
+        strata[cls] = {
+            "n_det": len(d), "n_gen": len(g), "comparable": True,
+            "ks_d": round(k.d, 4), "ks_p": round(k.p_value, 6),
+            "auc": round(a.auc, 4), "advantage_pct": round(a.advantage * 100, 1),
+            "verdict": v,
+        }
+
+    overruns = [s for s in samples if s.get("norm_overrun")]
+    return {
+        "global": {
+            "n_det": ks.n1, "n_gen": ks.n2,
+            "ks_d": round(ks.d, 4), "ks_p": round(ks.p_value, 6),
+            "auc": round(auc.auc, 4),
+            "advantage_pct": round(auc.advantage * 100, 1),
+            "verdict": label, "reading": reading,
+        },
+        "bimodality_coefficient": round(
+            bimodality_coefficient([s["wall_ms"] for s in samples]), 4),
+        "by_class": strata,
+        "normalization": {
+            "overruns": len(overruns),
+            "overrun_pct": round(100 * len(overruns) / len(samples), 2) if samples else 0.0,
+            "mean_overshoot_ms": round(
+                sum(s["wall_ms"] - s.get("norm_target_ms", s["wall_ms"])
+                    for s in overruns) / len(overruns), 1) if overruns else 0.0,
+        },
     }
 
 
@@ -296,10 +370,71 @@ def write_markdown(summary: dict[str, Any], samples: list[dict[str, Any]], path:
             f"{a['mean_ms']} ms | {a['p95_ms']} ms | {a['within_target_pct']} % | "
             f"{a['fidelity_pass_pct']} % |")
 
+    ind = summary["indistinguishability"]
+    gl, nz = ind["global"], ind["normalization"]
+    lines += [
+        "",
+        "## 3. Indistinguibilidad temporal de las dos rutas",
+        "",
+        "La pregunta que responde este apartado no es si la latencia media cumple "
+        "el objetivo, sino si un atacante que **solo cronometra respuestas** puede "
+        "saber cual de las dos rutas le ha contestado. Si puede, deduce que hay un "
+        "modelo de lenguaje detras y que el host es un senuelo.",
+        "",
+        "| Estadistico | Valor | Lectura |",
+        "|---|---|---|",
+        f"| Kolmogorov-Smirnov D | {gl['ks_d']} | Distancia maxima entre las dos "
+        f"distribuciones empiricas (0 = identicas). |",
+        f"| KS p-valor | {gl['ks_p']} | Por debajo de 0,05 las rutas son "
+        f"estadisticamente distinguibles. |",
+        f"| AUC | {gl['auc']} | Acierto del mejor clasificador temporal posible "
+        f"(0,5 = azar). |",
+        f"| Ventaja del atacante | {gl['advantage_pct']} % | Cuanto supera al azar. |",
+        f"| Coef. de bimodalidad | {ind['bimodality_coefficient']} | Por encima de "
+        f"0,555 la muestra agrupada es mas compatible con dos modas que con una. |",
+        "",
+        f"**Veredicto: {gl['verdict']}.** {gl['reading']}",
+        "",
+        f"Normalizacion: **{nz['overruns']}** comandos ({nz['overrun_pct']} %) "
+        f"excedieron su objetivo y no pudieron rellenarse"
+        + (f", con un exceso medio de {nz['mean_overshoot_ms']} ms." if nz["overruns"] else "."),
+        "",
+        "El relleno solo puede **anadir** tiempo. Un comando cuya resolucion ya "
+        "supera su objetivo no admite correccion, y esa muestra sigue siendo "
+        "separable: el porcentaje de exceso es, por tanto, la medida real de si la "
+        "normalizacion se sostiene.",
+        "",
+        "### 3.1. Por clase de comando",
+        "",
+        "La cifra global esta **confundida**: la ruta que toma un comando la decide "
+        "el propio comando, de modo que los comandos de la ruta lenta son tambien "
+        "los intrinsecamente mas costosos en un host real. Comparar solo dentro de "
+        "una misma clase elimina esa confusion.",
+        "",
+        "| Clase | n det. | n gen. | KS D | p | AUC | Ventaja | Veredicto |",
+        "|---|---|---|---|---|---|---|---|",
+    ]
+    for cls, st in ind["by_class"].items():
+        if not st["comparable"]:
+            lines.append(
+                f"| `{cls}` | {st['n_det']} | {st['n_gen']} | — | — | — | — | "
+                f"Sin comparacion: una sola ruta alcanza esta clase |")
+        else:
+            lines.append(
+                f"| `{cls}` | {st['n_det']} | {st['n_gen']} | {st['ks_d']} | "
+                f"{st['ks_p']} | {st['auc']} | {st['advantage_pct']} % | "
+                f"{st['verdict']} |")
+    lines += [
+        "",
+        "> El contraste KS puede demostrar que dos distribuciones **diferen**, pero "
+        "nunca que sean identicas. Un p-valor alto es evidencia de "
+        "indistinguibilidad al tamano de muestra empleado, no una prueba.",
+    ]
+
     failures = [s for s in samples if not s["fidelity_pass"]]
     if failures:
         seen: set[tuple[str, str]] = set()
-        lines += ["", "## 3. Fallos de fidelidad observados", "",
+        lines += ["", "## 4. Fallos de fidelidad observados", "",
                   "| Comando | Tokens ausentes en la salida |", "|---|---|"]
         for s in failures:
             key = (s["command"], s["fidelity_missing"])
@@ -308,7 +443,7 @@ def write_markdown(summary: dict[str, Any], samples: list[dict[str, Any]], path:
             seen.add(key)
             lines.append(f"| `{s['command']}` | {s['fidelity_missing']} |")
     else:
-        lines += ["", "## 3. Fallos de fidelidad observados", "",
+        lines += ["", "## 4. Fallos de fidelidad observados", "",
                   "Ninguno: todas las salidas contienen los tokens esperados."]
 
     with open(path, "w", encoding="utf-8") as fh:

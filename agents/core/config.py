@@ -40,6 +40,22 @@ LLM_TIMEOUT = _float("LLM_TIMEOUT", 20.0)
 # decoy by response time. Anything above this is flagged in telemetry.
 LATENCY_TARGET_MS = _float("LATENCY_TARGET_MS", 1000.0)
 
+# --- Latency normalisation --------------------------------------------------
+# Response time must depend on the command, never on the route that answered
+# it. Without this the deterministic route (~2 ms) and the generative one
+# (~2 s) form two separable populations and an attacker who times responses
+# detects the decoy. See core/latency.py.
+LATENCY_NORMALIZE = os.getenv("LATENCY_NORMALIZE", "true").lower() in ("1", "true", "yes")
+
+# Median round-trip time attributed to a session, and its log-normal spread.
+# Constant per session: an attacker connects over one network path.
+LATENCY_RTT_MEDIAN_MS = _float("LATENCY_RTT_MEDIAN_MS", 25.0)
+LATENCY_RTT_SIGMA = _float("LATENCY_RTT_SIGMA", 0.55)
+
+# Ceiling on a drawn target, as a multiple of its class median. Stops a single
+# outlier from being as conspicuous as the bimodality it replaced.
+LATENCY_TAIL_CAP = _float("LATENCY_TAIL_CAP", 6.0)
+
 # --- Persona ----------------------------------------------------------------
 PERSONA_PROFILE = os.getenv("PERSONA_PROFILE", "corporate-web-server")
 PERSONA_CACHE = os.getenv("PERSONA_CACHE", "/app/data/persona.json")

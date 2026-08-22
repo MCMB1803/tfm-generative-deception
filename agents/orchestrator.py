@@ -20,6 +20,7 @@ import time
 from typing import Any
 
 from core import config
+from core.latency import LatencyNormalizer
 from core.llm import OllamaClient
 from core.session import Session, SessionStore
 from core.telemetry import emit_event, emit_latency
@@ -37,6 +38,9 @@ class DeceptionOrchestrator:
     def __init__(self) -> None:
         self.llm = OllamaClient()
         self.sessions = SessionStore()
+        # Holds every answer until its command-derived target has elapsed,
+        # so response time never leaks which route produced it.
+        self.normalizer = LatencyNormalizer()
         self.persona = None
         self.artifacts: ArtifactAgent | None = None
         self.terminal: TerminalAgent | None = None
@@ -132,26 +136,37 @@ class DeceptionOrchestrator:
 
         result = self.terminal.resolve(session, command)  # type: ignore[union-attr]
 
+        # Everything above is internal cost; everything the attacker can
+        # measure is decided here. `compute_ms` stays for diagnostics, but the
+        # figure that matters -- and the one chapter 4 analyses -- is the
+        # observed latency after normalisation.
+        compute_ms = result.total_ms
+        norm = self.normalizer.settle(command, session.session_id, compute_ms,
+                                      route=result.route)
+        observed_ms = compute_ms + norm.slept_ms
+
         from core.session import Turn  # local import keeps the module graph flat
         session.record(Turn(command=command, output=result.output,
-                            route=result.route, latency_ms=result.total_ms))
+                            route=result.route, latency_ms=observed_ms))
 
         if command.strip():
             self.alerts.command_executed(  # type: ignore[union-attr]
-                session, command, result.output, result.route, result.total_ms)
+                session, command, result.output, result.route, observed_ms)
             emit_latency(
                 session_id=session.session_id,
                 command=command,
                 route=result.route,
-                total_ms=result.total_ms,
+                total_ms=observed_ms,
                 llm_ms=result.llm_ms,
                 eval_tokens=result.eval_tokens,
                 handler=result.handler,
                 src_ip=session.src_ip,
+                compute_ms=round(compute_ms, 3),
+                **norm.as_telemetry(),
             )
-            if result.total_ms > config.LATENCY_TARGET_MS:
+            if observed_ms > config.LATENCY_TARGET_MS:
                 self.alerts.latency_breach(  # type: ignore[union-attr]
-                    session, command, result.total_ms, config.LATENCY_TARGET_MS)
+                    session, command, observed_ms, config.LATENCY_TARGET_MS)
             if not result.llm_ok:
                 self.alerts.inference_degraded(  # type: ignore[union-attr]
                     str(result.meta.get("error")))
@@ -160,12 +175,14 @@ class DeceptionOrchestrator:
             "output": result.output,
             "route": result.route,
             "handler": result.handler,
-            "total_ms": round(result.total_ms, 3),
+            "total_ms": round(observed_ms, 3),
+            "compute_ms": round(compute_ms, 3),
             "llm_ms": round(result.llm_ms, 3),
             "eval_tokens": result.eval_tokens,
             "cwd": session.cwd,
             "prompt": self.prompt(session_id),
-            "within_target": result.total_ms <= config.LATENCY_TARGET_MS,
+            "within_target": observed_ms <= config.LATENCY_TARGET_MS,
+            "normalization": norm.as_telemetry(),
         }
 
     def close_session(self, session_id: str, reason: str = "client_disconnect") -> dict[str, Any] | None:
@@ -196,4 +213,8 @@ class DeceptionOrchestrator:
             "sessions_active": len(active),
             "commands_total": sum(len(s.transcript) for s in active),
             "latency_target_ms": config.LATENCY_TARGET_MS,
+            "latency_normalization": {
+                "enabled": self.normalizer.enabled,
+                **self.normalizer.stats.as_dict(),
+            },
         }

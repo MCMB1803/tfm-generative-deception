@@ -50,6 +50,14 @@ class Session:
     # Extra directory entries created this session: dir -> {names}
     created_entries: dict[str, set[str]] = field(default_factory=dict)
 
+    # Answers already produced by the generative route this session, keyed by
+    # (cwd, command). A real host that runs the same command twice over
+    # unchanged state prints the same thing twice; re-querying the model would
+    # print something slightly different and hand the attacker an incoherence.
+    # Serving the cached answer removes that tell and the inference cost with
+    # it. Invalidated whenever the session writes to the filesystem.
+    gen_cache: dict[tuple[str, str], str] = field(default_factory=dict)
+
     transcript: list[Turn] = field(default_factory=list)
     techniques_seen: set[str] = field(default_factory=set)
     max_severity: int = 0
@@ -67,12 +75,18 @@ class Session:
         return self.transcript[-n:] if n > 0 else []
 
     def add_file(self, path: str, content: str = "") -> None:
+        # Any write invalidates the generative cache: a cached `ls` from
+        # before the write would contradict the new state.
+        self.gen_cache.clear()
         self.overlay[path] = content
         parent = path.rsplit("/", 1)[0] or "/"
         name = path.rsplit("/", 1)[-1]
         self.created_entries.setdefault(parent, set()).add(name)
 
     def remove_path(self, path: str) -> None:
+        # Any write invalidates the generative cache: a cached `ls` from
+        # before the write would contradict the new state.
+        self.gen_cache.clear()
         self.overlay[path] = None
         parent = path.rsplit("/", 1)[0] or "/"
         name = path.rsplit("/", 1)[-1]
