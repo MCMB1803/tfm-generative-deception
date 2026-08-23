@@ -1,10 +1,33 @@
 # 05. Integración con SIEM (Wazuh / ELK)
 
-> **Estado: especificado y provisto, no desplegado.** Los ficheros de esta guía
-> están escritos y listos para aplicar, y el formato de eventos del framework
-> se diseñó para ingesta directa. La validación en un Wazuh real —envío,
-> disparo de reglas y visualización en el panel— queda pendiente y debe
-> reportarse como tal en la memoria, no como resultado obtenido.
+> **Estado: desplegado y validado contra un manager real.** Wazuh 4.9.2 forma
+> parte de `docker-compose.yml` bajo el perfil `siem`, y `siem/validate_rules.py`
+> comprueba, pasando eventos reales por `wazuh-logtest`, que **las 10 reglas
+> disparan el identificador y el nivel que declara este diseño**. La evidencia
+> se regenera en `benchmarks/results/SIEM_VALIDATION.md`.
+>
+> Lo que sigue **sin** validar, y debe declararse así en la memoria: el
+> transporte desde un agente remoto hasta el manager y la visualización en el
+> panel, que dependen del despliegue concreto.
+
+```bash
+docker compose --profile siem up -d
+python siem/validate_rules.py
+```
+
+Las reglas versionadas viven en `siem/wazuh/local_rules.xml`. Los bloques XML de
+este documento son su explicación; **el fichero es la fuente de verdad**, porque
+es el que se carga y el que se prueba.
+
+## Defectos que solo aparecieron al probarlas
+
+Las reglas estaban escritas pero nunca se habían ejecutado. Tres no funcionaban:
+
+| Defecto | Consecuencia | Corrección |
+|---|---|---|
+| La regla base usaba `<decoded_as>json</decoded_as>` | La regla **86600** del conjunto oficial («Suricata messages») captura cualquier JSON con los campos `timestamp` y `event_type`, que es la firma exacta de estos eventos. Al ser hermanas, el análisis se detenía ahí y **ninguna regla propia llegaba a evaluarse**: el SIEM no alertaba de nada. | Encadenarla con `<if_sid>86600</if_sid>`. |
+| `<field name="honeytokens">\.+</field>` | El decodificador JSON convierte un `null` en la cadena literal `'null'`, que `\.+` da por buena. La regla disparaba **nivel 15 en cada comando ejecutado**, convirtiendo la señal de mayor valor del sistema en ruido constante. | Comparar contra el formato del identificador (`HT-[0-9A-F]{6,}`) y omitir el campo en el emisor cuando está vacío. |
+| `<field name="src_ip">` con anclas y alternancia | `<field>` usa OS_Regex por defecto, que no admite `^`, `$` ni `(a\|b)`. El fichero entero se rechazaba y **el manager no arrancaba**. | Declarar `type="pcre2"`. |
 
 ---
 

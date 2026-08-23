@@ -1,0 +1,116 @@
+<!--
+  Reglas de correlacion del Generative Deception Framework (TFM UCM).
+
+  Se despliegan en el manager de Wazuh, en /var/ossec/etc/rules/local_rules.xml.
+  El framework escribe JSON Lines con claves planas, de modo que el decodificador
+  JSON incorporado de Wazuh las expone directamente como campos y no hace falta
+  un decoder propio.
+
+  El rango 100200-100299 esta reservado a este framework: los identificadores por
+  debajo de 100000 pertenecen al conjunto de reglas oficial y no deben tocarse.
+
+  Validacion reproducible: siem/validate_rules.py pasa eventos reales por
+  wazuh-logtest y comprueba que cada tipo dispara la regla y el nivel esperados.
+-->
+<group name="deception,generative_deception,">
+
+  <!-- Regla base: cualquier evento del framework.
+
+       Va encadenada a la 86600 y no declarada con <decoded_as>json</decoded_as>
+       por un motivo que solo aparece al probarla contra un manager real: la
+       86600 del conjunto oficial ("Suricata messages") captura cualquier JSON
+       que traiga los campos `timestamp` y `event_type`, que es exactamente la
+       firma de los eventos de este framework. Al ser hermanas, el analisis se
+       detenia en la 86600 y ninguna regla propia llegaba a evaluarse: todos
+       los eventos quedaban en nivel 0 y el SIEM no alertaba de nada.
+       Declarandola hija, la cadena continua con normalidad. -->
+  <rule id="100200" level="0">
+    <if_sid>86600</if_sid>
+    <field name="product">generative-deception-framework</field>
+    <description>Generative Deception Framework: evento</description>
+  </rule>
+
+  <!-- Conexion al senuelo. Nivel 12 fijo: no hay motivo legitimo. -->
+  <rule id="100201" level="12">
+    <if_sid>100200</if_sid>
+    <field name="event_type">session.opened</field>
+    <description>CIBERENGANO: conexion no autorizada al senuelo SSH desde $(src_ip)</description>
+    <mitre><id>T1021.004</id></mitre>
+  </rule>
+
+  <!-- Credenciales capturadas -->
+  <rule id="100202" level="12">
+    <if_sid>100200</if_sid>
+    <field name="event_type">auth.attempt</field>
+    <description>CIBERENGANO: credenciales capturadas - usuario '$(username)' desde $(src_ip)</description>
+    <mitre><id>T1110</id></mitre>
+  </rule>
+
+  <!-- Comandos: severidad segun la clasificacion ATT&CK del framework -->
+  <rule id="100210" level="8">
+    <if_sid>100200</if_sid>
+    <field name="event_type">command.executed</field>
+    <description>CIBERENGANO: comando en el senuelo - $(command)</description>
+  </rule>
+
+  <rule id="100211" level="12">
+    <if_sid>100210</if_sid>
+    <field name="severity">high</field>
+    <description>CIBERENGANO: reconocimiento avanzado - $(command)</description>
+  </rule>
+
+  <rule id="100212" level="14">
+    <if_sid>100210</if_sid>
+    <field name="severity">critical</field>
+    <description>CIBERENGANO CRITICO: acceso a credenciales o evasion - $(command)</description>
+  </rule>
+
+  <!-- Honeytoken leido: la senal de mayor valor del sistema -->
+  <rule id="100213" level="15">
+    <if_sid>100210</if_sid>
+    <!-- Se compara contra el formato real del identificador, no contra
+         "cualquier valor". El decodificador JSON de Wazuh convierte un null en
+         la cadena literal 'null', que \.+ da por buena: escrita de aquella
+         forma, la regla disparaba nivel 15 en CADA comando ejecutado y
+         convertia la senal de mayor valor del sistema en ruido constante. -->
+    <field name="honeytokens" type="pcre2">HT-[0-9A-F]{6,}</field>
+    <description>HONEYTOKEN COMPROMETIDO: $(honeytokens) leido por $(src_ip) via '$(command)'</description>
+    <mitre><id>T1552</id></mitre>
+  </rule>
+
+  <!-- Sesion con actividad sostenida: atacante interactivo, no escaner -->
+  <rule id="100220" level="13" frequency="10" timeframe="300">
+    <if_matched_sid>100210</if_matched_sid>
+    <same_field>session_id</same_field>
+    <description>CIBERENGANO: sesion interactiva sostenida desde $(src_ip) - operador humano probable</description>
+  </rule>
+
+  <!-- Alertas operativas: el senuelo puede haberse vuelto detectable -->
+  <rule id="100230" level="8">
+    <if_sid>100200</if_sid>
+    <field name="event_type">system.inference_degraded</field>
+    <description>OPERACION: motor de inferencia caido, senuelo en modo degradado</description>
+  </rule>
+
+  <rule id="100231" level="7">
+    <if_sid>100200</if_sid>
+    <field name="event_type">system.latency_breach</field>
+    <description>OPERACION: latencia de $(latency_ms) ms sobre el objetivo - riesgo de fingerprinting</description>
+  </rule>
+
+  <!-- Exclusion del escaneo corporativo autorizado. Estas conexiones son
+       reales pero no son intrusiones, y constituyen la condicion de contorno
+       de la afirmacion de cero falsos positivos: sin esta regla el escaner de
+       vulnerabilidades del inventario generaria una alerta de nivel 12 en
+       cada pasada. Debe declararse asi en la memoria. -->
+  <rule id="100290" level="0">
+    <if_sid>100201</if_sid>
+    <!-- type="pcre2" es obligatorio: por defecto <field> usa la sintaxis de
+         expresiones de Wazuh (OS_Regex), que no admite anclas ni alternancia
+         entre parentesis, y el fichero entero se rechaza con un error de
+         sintaxis que impide arrancar al manager. -->
+    <field name="src_ip" type="pcre2">^10\.42\.0\.(10|11)$</field>
+    <description>Escaneo autorizado del inventario: descartado</description>
+  </rule>
+
+</group>

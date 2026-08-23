@@ -120,3 +120,36 @@ services:
     security_opt:
       - no-new-privileges:true
     restart: unless-stopped
+
+  # --- SIEM: manager de Wazuh ----------------------------------------------
+  # Bajo el perfil "siem" para que la pila base siga siendo ligera:
+  #     docker compose --profile siem up -d
+  # El manager monta las reglas del framework y el directorio de eventos, de
+  # modo que puede analizarlas directamente sin desplegar un agente aparte.
+  wazuh-manager:
+    image: wazuh/wazuh-manager:4.9.2
+    container_name: wazuh_manager
+    profiles: ["siem"]
+    hostname: wazuh-manager
+    networks:
+      - deception-net
+    ports:
+      - "127.0.0.1:1514:1514/udp"
+      - "127.0.0.1:55000:55000"
+    environment:
+      # Sin indexer ni dashboard: la validacion de las reglas se hace con
+      # wazuh-logtest, que es reproducible y deja evidencia en texto. Filebeat
+      # arranca igualmente y no encuentra el indexer, lo cual es esperado y no
+      # afecta al motor de analisis, que es lo que aqui se valida.
+      FILEBEAT_SSL_VERIFICATION_MODE: "none"
+    volumes:
+      # Las reglas NO se montan dentro de /var/ossec/etc: un bind mount ahi
+      # impide que el contenedor instale su configuracion por defecto en el
+      # primer arranque y el manager se queda sin ossec.conf. Se dejan en una
+      # ruta neutra y las instala siem/validate_rules.py --install.
+      - ./siem/wazuh:/deception-rules:ro
+      - agent_data:/deception:ro
+    ulimits:
+      memlock: {soft: -1, hard: -1}
+      nofile: {soft: 655360, hard: 655360}
+    restart: unless-stopped

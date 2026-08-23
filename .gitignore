@@ -42,3 +42,4 @@ benchmarks/results/*
 !benchmarks/results/RESOURCES.md
 !benchmarks/results/resources_samples.csv
 !benchmarks/results/resources_summary.json
+!benchmarks/results/SIEM_VALIDATION.md

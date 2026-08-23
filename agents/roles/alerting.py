@@ -112,8 +112,13 @@ class AlertAgent:
             latency_ms=round(latency_ms, 2),
             output_preview=(output or "")[:400],
             mitre=classification["techniques"],
-            honeytokens=[h["honeytoken_id"] for h in honeytokens] or None,
             command_index=len(session.transcript) + 1,
+            # Omitido cuando no hay ninguno, en lugar de emitir null: el
+            # decodificador JSON de Wazuh convierte null en la cadena 'null' y
+            # cualquier regla que compruebe "el campo tiene valor" se dispara en
+            # todos los comandos. Un campo ausente no existe para el SIEM.
+            **({"honeytokens": [h["honeytoken_id"] for h in honeytokens]}
+               if honeytokens else {}),
         )
 
     def session_closed(self, session: Session, reason: str = "client_disconnect") -> dict[str, Any]:

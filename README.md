@@ -277,7 +277,7 @@ tfm-generative-deception/
 - [x] **Señuelo SSH** — sesión interactiva, captura de credenciales, clave de host persistente, edición de línea real.
 - [x] **Agentes de persona y artefactos** — sistema de ficheros virtual, honeytokens, `.bash_history` generado, simulación de tráfico.
 - [x] **Telemetría** — JSON Lines con mapeo MITRE ATT&CK y severidad; reglas de Wazuh **escritas**.
-- [ ] **Despliegue del SIEM** — Wazuh en el compose, ingesta real y validación de las reglas en el panel.
+- [x] **Despliegue del SIEM** — Wazuh 4.9.2 en el compose bajo el perfil `siem`; las 10 reglas validadas contra el manager real con `siem/validate_rules.py` (evidencia en `benchmarks/results/SIEM_VALIDATION.md`). Queda fuera el transporte desde un agente remoto y el panel.
 - [ ] **Normalización de latencia** — eliminar la bimodalidad de [§7](#7-qué-es-reproducible-y-qué-no) y validar con un test estadístico que las dos rutas no son separables por tiempo. Incluye medición de consumo de CPU/RAM por contenedor.
 - [ ] **Emulación de adversarios** — atacante LLM adaptativo y juez ciego, con transcripciones de un host real como control.
 - [ ] **Comparativa con Cowrie** — despliegue y misma batería de pruebas.
