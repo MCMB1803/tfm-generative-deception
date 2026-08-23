@@ -1,0 +1,10 @@
+# Credenciales del brazo Cowrie de la comparativa (apartado 4.4).
+#
+# Formato de Cowrie: usuario:uid:contrasena
+#
+# Se fija deliberadamente el mismo par usuario/contrasena que aceptan el
+# senuelo generativo y el host real de control, para que el arnes interrogue
+# a los tres brazos con credenciales identicas. La lista por defecto de la
+# imagen rechaza justamente esta contrasena, lo que introduciria una
+# diferencia de procedimiento entre brazos ajena al sistema medido.
+root:x:honeypot

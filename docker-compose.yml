@@ -12,6 +12,7 @@ volumes:
   ollama_data:
   agent_data:
   decoy_data:
+  cowrie_data:
 
 services:
   # --- Motor de inferencia local -------------------------------------------
@@ -152,4 +153,51 @@ services:
     ulimits:
       memlock: {soft: -1, hard: -1}
       nofile: {soft: 655360, hard: 655360}
+    restart: unless-stopped
+
+  # --- Host real de control (emulacion de adversarios) ---------------------
+  # Bajo el perfil "eval" para que no forme parte de la pila normal:
+  #     docker compose --profile eval up -d real-host
+  # Es un Debian sin adornos con un sshd real, el brazo de control contra el
+  # que se mide la credibilidad del senuelo. Publicado solo en loopback y en
+  # un puerto distinto al del senuelo, para que el mismo atacante interrogue a
+  # los dos por el mismo canal sin que sean el mismo servicio.
+  real-host:
+    build:
+      context: ./evaluation/real_host
+      args:
+        ROOT_PASSWORD: "${EVAL_ROOT_PASSWORD:-honeypot}"
+    container_name: eval_real_host
+    profiles: ["eval"]
+    hostname: srv-app-03
+    ports:
+      - "127.0.0.1:${EVAL_REAL_PORT:-2223}:22"
+    networks:
+      - deception-net
+    restart: unless-stopped
+
+  # --- Honeypot tradicional de referencia (comparativa) --------------------
+  # Bajo el perfil "compare" para que no forme parte de la pila normal:
+  #     docker compose --profile compare up -d cowrie
+  # Cowrie es el referente establecido en honeypots SSH de media interaccion
+  # (Oosterhof, 2014). Se despliega en la misma red y se publica en loopback,
+  # en un tercer puerto, de modo que el mismo arnes interrogue al senuelo
+  # generativo, al host real y a Cowrie por el mismo canal y con la misma
+  # bateria. Las diferencias observadas son entonces atribuibles al sistema y
+  # no al procedimiento de medida, que es la condicion que exige el apartado
+  # 4.4 de la memoria.
+  cowrie:
+    image: cowrie/cowrie:latest
+    container_name: compare_cowrie
+    profiles: ["compare"]
+    hostname: srv-app-04
+    ports:
+      - "127.0.0.1:${COMPARE_COWRIE_PORT:-2224}:2222"
+    volumes:
+      - cowrie_data:/cowrie/var
+      # Mismas credenciales que los otros dos brazos: la comparativa solo es
+      # valida si el instrumento no cambia entre sistemas.
+      - ./benchmarks/cowrie/userdb.txt:/cowrie/cowrie-git/etc/userdb.txt:ro
+    networks:
+      - deception-net
     restart: unless-stopped

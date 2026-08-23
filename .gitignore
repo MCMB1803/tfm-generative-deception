@@ -43,3 +43,14 @@ benchmarks/results/*
 !benchmarks/results/resources_samples.csv
 !benchmarks/results/resources_summary.json
 !benchmarks/results/SIEM_VALIDATION.md
+# Comparativa con Cowrie: es la evidencia del apartado 4.4 de la memoria,
+# asi que se versiona igual que el resto de resultados de referencia.
+!benchmarks/results/COMPARISON.md
+!benchmarks/results/comparison_cowrie.json
+
+# Resultados de la emulacion de adversarios: se versiona el informe y las
+# transcripciones de la ejecucion de referencia, no las intermedias.
+evaluation/results/*
+!evaluation/results/DECEPTION_EVAL.md
+!evaluation/results/transcripts.jsonl
+!evaluation/results/verdicts.jsonl

@@ -25,6 +25,8 @@ Señuelo SSH de ciberengaño dinámico guiado por una arquitectura multi-agente 
 9. [Telemetría para el SOC](#9-telemetría-para-el-soc)
 10. [Estructura del repositorio](#10-estructura-del-repositorio)
 11. [Estado del proyecto](#11-estado-del-proyecto)
+12. [Emulación de adversarios y credibilidad](#12-emulación-de-adversarios-y-credibilidad)
+13. [Comparativa con un honeypot tradicional](#13-comparativa-con-un-honeypot-tradicional)
 - [Créditos](#créditos)
 - [Aviso](#aviso)
 
@@ -204,25 +206,23 @@ Conviene ser explícito, porque el sistema tiene una parte determinista y otra e
 - La **ruta generativa**. Corre con `TEMPERATURE=0.3` y sin semilla fijada en el modelo, de modo que el texto varía entre ejecuciones. Por eso los resultados se reportan como **distribuciones sobre N muestras** (media, mediana, desviación, p95, p99) y no como valores puntuales.
 - Las **latencias absolutas**, que dependen del hardware de [§4](#4-entorno-de-referencia).
 
-**Limitación conocida y abierta.** La distribución de latencia de la ejecución de referencia es **bimodal**: ~2 ms en la ruta determinista frente a ~2.044 ms en la generativa, con desviaciones típicas de 1,6 y 7,3 ms. Ningún host real produce dos poblaciones tan limpias y tan separadas, así que un atacante que cronometre respuestas puede separar ambas rutas y deducir que hay un modelo detrás. Está documentado aquí a propósito, no escondido: es el problema que aborda la fase de normalización de latencia ([§11](#11-estado-del-proyecto)), y la métrica correcta no es «media por debajo de 1.000 ms» sino «un atacante no puede separar las dos rutas por tiempo», contrastable con un test estadístico.
+**Bimodalidad de latencia: de problema abierto a normalizado.** La primera medición sin normalizar era **bimodal** —microsegundos en la ruta determinista frente a ~2 s en la generativa—, dos poblaciones tan limpias y separadas que un atacante que cronometrase respuestas podía deducir que había un modelo detrás. La fase de normalización de latencia ([§11](#11-estado-del-proyecto)) lo aborda con un relleno por clase de comando que iguala las dos rutas, y lo valida con un test estadístico —no «media por debajo de 1.000 ms», sino «un atacante no puede separar las dos rutas por tiempo»— (Kolmogorov-Smirnov, AUC del mejor clasificador temporal y coeficiente de bimodalidad) en [`benchmarks/results/RESULTS.md`](benchmarks/results/RESULTS.md). El contraste puede demostrar que dos distribuciones **difieren**, pero un p-valor alto es evidencia de indistinguibilidad al tamaño de muestra empleado, no una prueba: por eso se reporta también, estratificado por clase de comando, el porcentaje de muestras que exceden su objetivo y no admiten relleno.
 
-**Sobre la métrica de fidelidad.** El `fidelity_pass_pct` que aparece en `RESULTS.md` es una **comprobación de subcadenas** contra una lista de tokens esperados escrita a mano (`benchmarks/latency_benchmark.py:146`). Es reproducible por un tercero y sirve como prueba de regresión, pero **no mide que el engaño resulte creíble**: para la ruta determinista, que genera esas salidas desde plantillas, un 100 % es casi tautológico. La evaluación de credibilidad requiere adversario y juez ciego, que es la fase pendiente de [§11](#11-estado-del-proyecto).
+**Sobre la métrica de fidelidad.** El `fidelity_pass_pct` que aparece en `RESULTS.md` es una **comprobación de subcadenas** contra una lista de tokens esperados escrita a mano (`benchmarks/latency_benchmark.py:146`). Es reproducible por un tercero y sirve como prueba de regresión, pero **no mide que el engaño resulte creíble**: para la ruta determinista, que genera esas salidas desde plantillas, un 100 % es casi tautológico. La evaluación de credibilidad requiere adversario y juez ciego, y se aborda en [§12](#12-emulación-de-adversarios-y-credibilidad).
 
 ---
 
 ## 8. Resultados de referencia
 
-Ejecución del **2026-08-22T15:41:31Z**, 40 muestras, objetivo de latencia 1.000 ms. Fuente: [`benchmarks/results/RESULTS.md`](benchmarks/results/RESULTS.md).
+Ejecución con normalización activa, 54 muestras, objetivo de latencia 1.000 ms. **Cifras siempre desde [`benchmarks/results/RESULTS.md`](benchmarks/results/RESULTS.md), que se regenera en cada ejecución** —la tabla siguiente es un extracto de esa fuente y no debe editarse a mano—.
 
 | Ruta | n | Media | Mediana | Desv. típ. | p95 | Dentro de objetivo |
 |---|---|---|---|---|---|---|
-| **Global** | 40 | 512,9 ms | 2,2 ms | 895,5 ms | 2.048,8 ms | 75,0 % |
-| Determinista | 30 | 2,4 ms | 1,5 ms | 1,6 ms | 5,6 ms | 100 % |
-| Generativa | 10 | 2.044,4 ms | 2.045,4 ms | 7,3 ms | 2.054,0 ms | **0 %** |
+| **Global** | 54 | 971,1 ms | 786,3 ms | 486,6 ms | 1.831,9 ms | 83,3 % |
+| Determinista | 27 | 855,6 ms | 781,2 ms | 158,4 ms | 1.003,6 ms | 88,9 % |
+| Generativa | 27 | 1.086,6 ms | 912,0 ms | 655,7 ms | 2.829,5 ms | 77,8 % |
 
-Reparto: 75 % de los comandos por la ruta determinista, 25 % por la generativa.
-
-La ruta generativa **incumple el objetivo en el 100 % de las muestras**. Léase junto a la limitación conocida de [§7](#7-qué-es-reproducible-y-qué-no): es el punto de partida del trabajo pendiente, no un resultado que el proyecto dé por bueno.
+Con el relleno activo la métrica que importa no es la media, sino si las dos rutas son separables por tiempo. En la ejecución de referencia el veredicto global es **INDISTINGUIBLE** (KS D = 0,22, p = 0,47; AUC = 0,50, ventaja del atacante 0,1 %). El propio informe estratifica por clase de comando y marca como **INSUFICIENTE** las clases donde una sola ruta alcanza esa clase o el tamaño de muestra no da potencia: la conclusión honesta es «indistinguible dentro de las clases comparables, a este tamaño de muestra», y por eso se recomienda `--repeat 5` o más para la memoria.
 
 ---
 
@@ -246,7 +246,7 @@ Los eventos se escriben en el volumen `agent_data`:
 docker compose exec deception-agent tail -f /app/data/logs/deception-events.jsonl
 ```
 
-Reglas de correlación y configuración de ingesta en [`docs/05_SIEM_INTEGRATION.md`](docs/05_SIEM_INTEGRATION.md). **El SIEM está especificado y provisto, pero no desplegado ni validado**: las reglas están escritas y el formato de evento se diseñó para ingesta directa, pero el envío real a un Wazuh en producción, el disparo de las reglas y su visualización en el panel siguen pendientes ([§11](#11-estado-del-proyecto)).
+Reglas de correlación y configuración de ingesta en [`docs/05_SIEM_INTEGRATION.md`](docs/05_SIEM_INTEGRATION.md). **El SIEM está desplegado y las reglas validadas contra un manager real**: Wazuh 4.9.2 corre bajo el perfil `siem` del compose y `siem/validate_rules.py` contrasta las 10 reglas contra `wazuh-logtest`, con la evidencia en [`benchmarks/results/SIEM_VALIDATION.md`](benchmarks/results/SIEM_VALIDATION.md). Queda fuera el transporte desde un agente remoto y el panel ([§11](#11-estado-del-proyecto)).
 
 ---
 
@@ -265,7 +265,14 @@ tfm-generative-deception/
 ├── benchmarks/
 │   ├── latency_benchmark.py    Banco de latencia y fidelidad
 │   └── results/                Ejecución de referencia (CSV · JSON · RESULTS.md)
-├── tests/test_core.py          Suite offline (sin Docker ni Ollama)
+├── siem/                       Reglas de Wazuh y validador contra el manager
+├── evaluation/                 Emulación de adversarios: atacante, juez ciego, métricas
+│   ├── run_deception_eval.py   Arnés: recolección + juicio ciego + informe
+│   ├── real_host/              Brazo de control (Debian + sshd real)
+│   └── results/                Transcripciones · veredictos · DECEPTION_EVAL.md
+├── tests/
+│   ├── test_core.py            Suite offline del núcleo (sin Docker ni Ollama)
+│   └── test_evaluation.py      Suite offline del arnés de evaluación
 └── docs/                       Documentación técnica
 ```
 
@@ -278,10 +285,66 @@ tfm-generative-deception/
 - [x] **Agentes de persona y artefactos** — sistema de ficheros virtual, honeytokens, `.bash_history` generado, simulación de tráfico.
 - [x] **Telemetría** — JSON Lines con mapeo MITRE ATT&CK y severidad; reglas de Wazuh **escritas**.
 - [x] **Despliegue del SIEM** — Wazuh 4.9.2 en el compose bajo el perfil `siem`; las 10 reglas validadas contra el manager real con `siem/validate_rules.py` (evidencia en `benchmarks/results/SIEM_VALIDATION.md`). Queda fuera el transporte desde un agente remoto y el panel.
-- [ ] **Normalización de latencia** — eliminar la bimodalidad de [§7](#7-qué-es-reproducible-y-qué-no) y validar con un test estadístico que las dos rutas no son separables por tiempo. Incluye medición de consumo de CPU/RAM por contenedor.
-- [ ] **Emulación de adversarios** — atacante LLM adaptativo y juez ciego, con transcripciones de un host real como control.
-- [ ] **Comparativa con Cowrie** — despliegue y misma batería de pruebas.
+- [x] **Normalización de latencia** — relleno por clase de comando que hace las dos rutas indistinguibles por tiempo, validado con un test estadístico (KS + AUC + coeficiente de bimodalidad) en [`benchmarks/results/RESULTS.md`](benchmarks/results/RESULTS.md). Incluye la medición de consumo de CPU/RAM por contenedor en [`benchmarks/results/RESOURCES.md`](benchmarks/results/RESOURCES.md).
+- [x] **Emulación de adversarios** — atacante LLM adaptativo y **juez ciego** contra un host Linux real como control, con acierto contrastado por test binomial y acuerdo entre dos jueces (Cohen κ). Arnés en `evaluation/`, metodología en [`docs/06_ADVERSARY_EMULATION.md`](docs/06_ADVERSARY_EMULATION.md). Queda pendiente la ejecución de referencia con el juez de 7B descargado.
+- [x] **Comparativa con Cowrie** — Cowrie 2.x en el compose bajo el perfil `compare`, interrogado con el mismo cliente SSH, las mismas credenciales y la misma batería de 30 comandos que el señuelo y el host real. Cuatro ejes medidos (cobertura, coherencia, tiempo hasta el primer byte y coste) en [`benchmarks/results/COMPARISON.md`](benchmarks/results/COMPARISON.md); ver [§13](#13-comparativa-con-un-honeypot-tradicional).
 - [ ] **Futuro** — señuelos HTTP y FTP reutilizando el mismo orquestador.
+
+---
+
+## 12. Emulación de adversarios y credibilidad
+
+La latencia ([§8](#8-resultados-de-referencia)) mide si el señuelo es rápido e indistinguible **en el tiempo**; no mide si su contenido **es creíble**. Un host puede responder rápido y aun así delatarse porque su `/etc/passwd` no cuadra con sus procesos, o porque un `ls -l` tiene un formato que ningún `coreutils` real produce. Esa pregunta la responde un juez ciego.
+
+**Diseño.** Un atacante LLM adaptativo (`llama3.2:3b`, de familia distinta a la del señuelo y a la del juez, para que ninguno reconozca su propia salida), con root por SSH, elige cada comando según la salida del anterior e interroga por igual dos brazos: el señuelo y un **host Linux real como control** (Debian sin adornos, servicio `real-host` bajo el perfil `eval`). Las transcripciones se juntan, se barajan y se despojan de toda etiqueta de brazo y puerto; luego **dos jueces independientes** —un modelo mayor (`qwen2.5:7b`) y el propio modelo del señuelo (`qwen2.5-coder:0.5b`) como contraste— clasifican cada una, a ciegas, sin que se les diga que hay un honeypot en la muestra.
+
+**Métrica.** Con la muestra equilibrada al 50 %, un juez inútil acierta el 50 %. El resultado buscado es **que no supere el azar**, contrastado con un test binomial exacto, con matriz de confusión y recall por clase (para descartar al juez que siempre dice «señuelo»), y con el acuerdo entre los dos jueces (Cohen κ). El veredicto del propio atacante se reporta como señal adversaria secundaria, no como la medida ciega: sabe que busca un honeypot y está sesgado.
+
+**Suelo de evidencia.** La primera ejecución de referencia falló por método, no por código: con un atacante de 0,5 B, **doce de dieciséis sesiones acabaron con cero comandos ejecutados** porque el modelo emitía su veredicto en la primera réplica, antes de tocar el host. El juez recibía transcripciones vacías. El arnés rechaza ahora el veredicto hasta que el atacante haya ejecutado `--min-turns` comandos (5 por defecto) y le devuelve el turno; es un mínimo de trabajo, no un empujón hacia ninguna conclusión. Queda fijado en la suite offline con un modelo simulado que insiste en concluir en el turno cero.
+
+```bash
+docker compose --profile eval up -d --build real-host   # levantar el control real
+docker exec ollama_llm ollama pull qwen2.5:7b            # juez principal (~5 GB, una vez)
+docker exec ollama_llm ollama pull llama3.2:3b           # atacante independiente (~2 GB)
+pip install -r evaluation/requirements.txt
+python evaluation/run_deception_eval.py --sessions 8     # -> evaluation/results/DECEPTION_EVAL.md
+```
+
+La suite offline `tests/test_evaluation.py` valida, sin Docker ni Ollama, lo que debe ser correcto pase lo que pase el modelo: que el render ciego no filtre el brazo, la estadística y la barrera de seguridad del atacante. Metodología completa, garantías de ceguera y limitaciones en [`docs/06_ADVERSARY_EMULATION.md`](docs/06_ADVERSARY_EMULATION.md). **Igual que en la latencia, ninguna cifra entra en la memoria sin proceder de una ejecución del arnés**; el informe se regenera y no se edita a mano.
+
+---
+
+## 13. Comparativa con un honeypot tradicional
+
+Cowrie es el referente establecido en honeypots SSH de media interacción (Oosterhof, 2014). La comparación solo significa algo si ambos sistemas se interrogan con **el mismo instrumento**, así que el arnés los conduce con el cliente SSH de `evaluation/targets.py` —el mismo que usa el juez ciego— con idénticas credenciales y la misma batería de 30 comandos. Se incluye un tercer brazo, el **host Debian real**, porque la pregunta que interesa no es cuál de los dos honeypots responde más, sino cuál se parece más a un servidor de verdad.
+
+```bash
+docker compose --profile compare up -d cowrie      # honeypot de referencia
+docker compose --profile eval    up -d real-host   # brazo de control
+python benchmarks/cowrie_comparison.py --repeat 2  # -> benchmarks/results/COMPARISON.md
+```
+
+### Resultados de referencia
+
+| Sistema | Cobertura | Divergencia vs. real | Coherencia | Mediana | p95 |
+|---|---|---|---|---|---|
+| Marco generativo | **96,7 %** | **8/30** | 96,7 % | 598,0 ms | 666,7 ms |
+| Cowrie | 63,3 % | **6/30** | 93,3 % | 10,5 ms | 21,2 ms |
+| Host real (control) | 70,0 % | — referencia | 93,3 % | 4,5 ms | 9,8 ms |
+
+**Cómo leer esta tabla, porque la lectura ingenua es la equivocada:**
+
+1. **La cobertura no se lee sola.** El host real solo responde al 70 % de la batería, porque nueve de esas rutas *no existen* en un Debian recién instalado: no hay `/root/.my.cnf`, ni crontab de root, ni `sudo`, ni `nmap`. Una cobertura próxima al 100 % no es una victoria, es una anomalía que ningún sistema real presenta.
+
+2. **Por divergencia, la comparación se invierte.** El marco generativo discrepa del host real en 8 de 30 comandos y Cowrie en solo 6. Las ocho del señuelo son deliberadas —son los honeytokens y artefactos sembrados— pero son también superficie de identificación. La verosimilitud no se maximiza generando *más*, sino generando *lo que un host real tendría*.
+
+3. **La latencia mide el primer byte, no el silencio.** El cliente espera 1,2 s de quietud antes de cerrar una respuesta; medir hasta ahí devuelve ~1.240 ms para los tres brazos, incluido el Debian pelado, y describe el instrumento en vez del sistema.
+
+4. **El canal lateral interno está cerrado; el externo no.** La normalización de [§8](#8-resultados-de-referencia) hace indistinguibles las dos rutas internas (AUC 0,499), pero el señuelo sigue dos órdenes de magnitud por encima de un `sshd` real. **Es la limitación más seria del trabajo**: un adversario con un servidor legítimo de la misma organización como término de comparación puede separarlo por tiempo.
+
+5. **Coherencia perfecta también delata.** El señuelo es *más* estable que el host real (96,7 % frente a 93,3 %), donde `ps aux` e `history` cambian legítimamente entre invocaciones.
+
+El precio de los 33 puntos de cobertura: **dos órdenes de magnitud más de memoria** (los ~4,4 GiB residentes del motor de inferencia, frente a los 54 MiB de Cowrie) y **dos más de latencia**. Desglose comando a comando en [`benchmarks/results/COMPARISON.md`](benchmarks/results/COMPARISON.md).
 
 ---
 

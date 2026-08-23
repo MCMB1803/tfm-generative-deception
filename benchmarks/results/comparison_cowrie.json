@@ -1,0 +1,1108 @@
+{
+  "generated_at": "2026-08-23T22:53:22.673614+00:00",
+  "bateria": 30,
+  "repeticiones": 2,
+  "arms": [
+    {
+      "arm": "marco-generativo",
+      "endpoint": "127.0.0.1:2222",
+      "server_version": "SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.6",
+      "banner_lineas": 12,
+      "n_comandos": 30,
+      "cobertura_pct": 96.7,
+      "coherencia_pct": 96.7,
+      "latencia_ms": {
+        "n": 60,
+        "media": 610.2,
+        "mediana": 598.0,
+        "p95": 666.7
+      },
+      "detalle": [
+        {
+          "comando": "whoami",
+          "tecnica": "T1033",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            592.3,
+            590.8
+          ],
+          "bytes": 4
+        },
+        {
+          "comando": "id",
+          "tecnica": "T1033",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            591.0,
+            591.0
+          ],
+          "bytes": 38
+        },
+        {
+          "comando": "hostname",
+          "tecnica": "T1082",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            592.5,
+            595.8
+          ],
+          "bytes": 15
+        },
+        {
+          "comando": "uname -a",
+          "tecnica": "T1082",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            597.3,
+            594.4
+          ],
+          "bytes": 115
+        },
+        {
+          "comando": "cat /etc/os-release",
+          "tecnica": "T1082",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            600.4,
+            594.4
+          ],
+          "bytes": 301
+        },
+        {
+          "comando": "pwd",
+          "tecnica": "T1083",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            598.6,
+            593.3
+          ],
+          "bytes": 5
+        },
+        {
+          "comando": "ls -la",
+          "tecnica": "T1083",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            606.3,
+            624.4
+          ],
+          "bytes": 305
+        },
+        {
+          "comando": "ls -la /var/www",
+          "tecnica": "T1083",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            594.4,
+            601.5
+          ],
+          "bytes": 118
+        },
+        {
+          "comando": "cat /etc/passwd",
+          "tecnica": "T1087.001",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            593.5,
+            596.5
+          ],
+          "bytes": 1026
+        },
+        {
+          "comando": "cat /etc/shadow",
+          "tecnica": "T1087.001",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            592.9,
+            599.1
+          ],
+          "bytes": 842
+        },
+        {
+          "comando": "cat /etc/group",
+          "tecnica": "T1087.001",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            596.8,
+            599.7
+          ],
+          "bytes": 138
+        },
+        {
+          "comando": "ps aux",
+          "tecnica": "T1057",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            637.5,
+            614.4
+          ],
+          "bytes": 1312
+        },
+        {
+          "comando": "ip a",
+          "tecnica": "T1016",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            624.9,
+            610.7
+          ],
+          "bytes": 657
+        },
+        {
+          "comando": "netstat -tulpn",
+          "tecnica": "T1016",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            622.3,
+            635.9
+          ],
+          "bytes": 722
+        },
+        {
+          "comando": "cat /etc/hosts",
+          "tecnica": "T1016",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            595.7,
+            597.4
+          ],
+          "bytes": 287
+        },
+        {
+          "comando": "df -h",
+          "tecnica": "T1082",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            638.5,
+            776.7
+          ],
+          "bytes": 380
+        },
+        {
+          "comando": "free -h",
+          "tecnica": "T1082",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            681.6,
+            660.5
+          ],
+          "bytes": 206
+        },
+        {
+          "comando": "history",
+          "tecnica": "T1552.001",
+          "cubierto": true,
+          "coherente": false,
+          "ms": [
+            597.3,
+            596.5
+          ],
+          "bytes": 871
+        },
+        {
+          "comando": "cat /root/.bash_history",
+          "tecnica": "T1552.001",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            595.8,
+            589.1
+          ],
+          "bytes": 300
+        },
+        {
+          "comando": "ls -la /root/.ssh",
+          "tecnica": "T1552.004",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            611.6,
+            606.3
+          ],
+          "bytes": 377
+        },
+        {
+          "comando": "cat /root/.ssh/id_rsa",
+          "tecnica": "T1552.004",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            599.6,
+            596.6
+          ],
+          "bytes": 1629
+        },
+        {
+          "comando": "cat /root/.my.cnf",
+          "tecnica": "T1552.001",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            596.7,
+            595.1
+          ],
+          "bytes": 61
+        },
+        {
+          "comando": "crontab -l",
+          "tecnica": "T1053.003",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            620.3,
+            666.7
+          ],
+          "bytes": 146
+        },
+        {
+          "comando": "cat /etc/crontab",
+          "tecnica": "T1053.003",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            596.7,
+            601.5
+          ],
+          "bytes": 258
+        },
+        {
+          "comando": "tail -20 /var/log/auth.log",
+          "tecnica": "T1005",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            598.6,
+            595.8
+          ],
+          "bytes": 2231
+        },
+        {
+          "comando": "cat /etc/passwd | grep bash",
+          "tecnica": "T1087.001",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            600.4,
+            598.6
+          ],
+          "bytes": 284
+        },
+        {
+          "comando": "sudo -l",
+          "tecnica": "T1548.003",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            646.7,
+            607.1
+          ],
+          "bytes": 247
+        },
+        {
+          "comando": "which nmap",
+          "tecnica": "T1046",
+          "cubierto": false,
+          "coherente": true,
+          "ms": [
+            591.9,
+            591.5
+          ],
+          "bytes": 0
+        },
+        {
+          "comando": "uptime",
+          "tecnica": "T1082",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            586.9,
+            591.2
+          ],
+          "bytes": 69
+        },
+        {
+          "comando": "lscpu",
+          "tecnica": "T1082",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            682.0,
+            618.2
+          ],
+          "bytes": 337
+        }
+      ],
+      "divergencia_n": 8,
+      "divergencia": [
+        "ls -la /var/www",
+        "ls -la /root/.ssh",
+        "cat /root/.ssh/id_rsa",
+        "cat /root/.my.cnf",
+        "crontab -l",
+        "cat /etc/crontab",
+        "tail -20 /var/log/auth.log",
+        "sudo -l"
+      ]
+    },
+    {
+      "arm": "cowrie",
+      "endpoint": "127.0.0.1:2224",
+      "server_version": "SSH-2.0-OpenSSH_9.2p1 Debian-2+deb12u3",
+      "banner_lineas": 5,
+      "n_comandos": 30,
+      "cobertura_pct": 63.3,
+      "coherencia_pct": 93.3,
+      "latencia_ms": {
+        "n": 60,
+        "media": 10.7,
+        "mediana": 10.5,
+        "p95": 21.2
+      },
+      "detalle": [
+        {
+          "comando": "whoami",
+          "tecnica": "T1033",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            14.0,
+            11.8
+          ],
+          "bytes": 4
+        },
+        {
+          "comando": "id",
+          "tecnica": "T1033",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            11.2,
+            12.7
+          ],
+          "bytes": 38
+        },
+        {
+          "comando": "hostname",
+          "tecnica": "T1082",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            2.7,
+            12.4
+          ],
+          "bytes": 5
+        },
+        {
+          "comando": "uname -a",
+          "tecnica": "T1082",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            6.8,
+            3.0
+          ],
+          "bytes": 95
+        },
+        {
+          "comando": "cat /etc/os-release",
+          "tecnica": "T1082",
+          "cubierto": false,
+          "coherente": true,
+          "ms": [
+            24.9,
+            3.9
+          ],
+          "bytes": 0
+        },
+        {
+          "comando": "pwd",
+          "tecnica": "T1083",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            4.2,
+            3.4
+          ],
+          "bytes": 5
+        },
+        {
+          "comando": "ls -la",
+          "tecnica": "T1083",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            3.5,
+            3.0
+          ],
+          "bytes": 201
+        },
+        {
+          "comando": "ls -la /var/www",
+          "tecnica": "T1083",
+          "cubierto": false,
+          "coherente": true,
+          "ms": [
+            3.9,
+            3.2
+          ],
+          "bytes": 53
+        },
+        {
+          "comando": "cat /etc/passwd",
+          "tecnica": "T1087.001",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            2.9,
+            16.3
+          ],
+          "bytes": 867
+        },
+        {
+          "comando": "cat /etc/shadow",
+          "tecnica": "T1087.001",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            8.0,
+            17.6
+          ],
+          "bytes": 749
+        },
+        {
+          "comando": "cat /etc/group",
+          "tecnica": "T1087.001",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            18.3,
+            8.5
+          ],
+          "bytes": 537
+        },
+        {
+          "comando": "ps aux",
+          "tecnica": "T1057",
+          "cubierto": true,
+          "coherente": false,
+          "ms": [
+            16.3,
+            4.7
+          ],
+          "bytes": 9009
+        },
+        {
+          "comando": "ip a",
+          "tecnica": "T1016",
+          "cubierto": false,
+          "coherente": true,
+          "ms": [
+            13.4,
+            12.4
+          ],
+          "bytes": 28
+        },
+        {
+          "comando": "netstat -tulpn",
+          "tecnica": "T1016",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            12.6,
+            14.7
+          ],
+          "bytes": 700
+        },
+        {
+          "comando": "cat /etc/hosts",
+          "tecnica": "T1016",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            15.1,
+            20.9
+          ],
+          "bytes": 183
+        },
+        {
+          "comando": "df -h",
+          "tecnica": "T1082",
+          "cubierto": false,
+          "coherente": true,
+          "ms": [
+            14.8,
+            10.8
+          ],
+          "bytes": 65
+        },
+        {
+          "comando": "free -h",
+          "tecnica": "T1082",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            8.6,
+            7.2
+          ],
+          "bytes": 203
+        },
+        {
+          "comando": "history",
+          "tecnica": "T1552.001",
+          "cubierto": true,
+          "coherente": false,
+          "ms": [
+            5.0,
+            12.7
+          ],
+          "bytes": 608
+        },
+        {
+          "comando": "cat /root/.bash_history",
+          "tecnica": "T1552.001",
+          "cubierto": false,
+          "coherente": true,
+          "ms": [
+            6.1,
+            5.0
+          ],
+          "bytes": 51
+        },
+        {
+          "comando": "ls -la /root/.ssh",
+          "tecnica": "T1552.004",
+          "cubierto": false,
+          "coherente": true,
+          "ms": [
+            4.1,
+            23.9
+          ],
+          "bytes": 55
+        },
+        {
+          "comando": "cat /root/.ssh/id_rsa",
+          "tecnica": "T1552.004",
+          "cubierto": false,
+          "coherente": true,
+          "ms": [
+            15.4,
+            8.1
+          ],
+          "bytes": 49
+        },
+        {
+          "comando": "cat /root/.my.cnf",
+          "tecnica": "T1552.001",
+          "cubierto": false,
+          "coherente": true,
+          "ms": [
+            21.2,
+            10.2
+          ],
+          "bytes": 45
+        },
+        {
+          "comando": "crontab -l",
+          "tecnica": "T1053.003",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            5.5,
+            16.5
+          ],
+          "bytes": 19
+        },
+        {
+          "comando": "cat /etc/crontab",
+          "tecnica": "T1053.003",
+          "cubierto": false,
+          "coherente": true,
+          "ms": [
+            11.2,
+            4.6
+          ],
+          "bytes": 44
+        },
+        {
+          "comando": "tail -20 /var/log/auth.log",
+          "tecnica": "T1005",
+          "cubierto": false,
+          "coherente": true,
+          "ms": [
+            9.1,
+            17.1
+          ],
+          "bytes": 27
+        },
+        {
+          "comando": "cat /etc/passwd | grep bash",
+          "tecnica": "T1087.001",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            13.4,
+            6.8
+          ],
+          "bytes": 88
+        },
+        {
+          "comando": "sudo -l",
+          "tecnica": "T1548.003",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            3.9,
+            16.4
+          ],
+          "bytes": 656
+        },
+        {
+          "comando": "which nmap",
+          "tecnica": "T1046",
+          "cubierto": false,
+          "coherente": true,
+          "ms": [
+            16.6,
+            8.2
+          ],
+          "bytes": 0
+        },
+        {
+          "comando": "uptime",
+          "tecnica": "T1082",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            30.6,
+            12.3
+          ],
+          "bytes": 61
+        },
+        {
+          "comando": "lscpu",
+          "tecnica": "T1082",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            7.2,
+            4.0
+          ],
+          "bytes": 596
+        }
+      ],
+      "divergencia_n": 6,
+      "divergencia": [
+        "cat /etc/os-release",
+        "ip a",
+        "df -h",
+        "cat /root/.bash_history",
+        "crontab -l",
+        "sudo -l"
+      ]
+    },
+    {
+      "arm": "host-real",
+      "endpoint": "127.0.0.1:2223",
+      "server_version": "SSH-2.0-OpenSSH_9.2p1 Debian-2+deb12u10",
+      "banner_lineas": 7,
+      "n_comandos": 30,
+      "cobertura_pct": 70.0,
+      "coherencia_pct": 93.3,
+      "latencia_ms": {
+        "n": 60,
+        "media": 5.0,
+        "mediana": 4.5,
+        "p95": 9.8
+      },
+      "detalle": [
+        {
+          "comando": "whoami",
+          "tecnica": "T1033",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            7.0,
+            3.3
+          ],
+          "bytes": 4
+        },
+        {
+          "comando": "id",
+          "tecnica": "T1033",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            1.6,
+            1.1
+          ],
+          "bytes": 38
+        },
+        {
+          "comando": "hostname",
+          "tecnica": "T1082",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            4.4,
+            3.8
+          ],
+          "bytes": 10
+        },
+        {
+          "comando": "uname -a",
+          "tecnica": "T1082",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            2.5,
+            4.2
+          ],
+          "bytes": 104
+        },
+        {
+          "comando": "cat /etc/os-release",
+          "tecnica": "T1082",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            6.0,
+            8.0
+          ],
+          "bytes": 266
+        },
+        {
+          "comando": "pwd",
+          "tecnica": "T1083",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            4.9,
+            3.7
+          ],
+          "bytes": 5
+        },
+        {
+          "comando": "ls -la",
+          "tecnica": "T1083",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            6.5,
+            7.4
+          ],
+          "bytes": 249
+        },
+        {
+          "comando": "ls -la /var/www",
+          "tecnica": "T1083",
+          "cubierto": false,
+          "coherente": true,
+          "ms": [
+            5.3,
+            6.4
+          ],
+          "bytes": 55
+        },
+        {
+          "comando": "cat /etc/passwd",
+          "tecnica": "T1087.001",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            5.3,
+            4.4
+          ],
+          "bytes": 884
+        },
+        {
+          "comando": "cat /etc/shadow",
+          "tecnica": "T1087.001",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            3.9,
+            1.2
+          ],
+          "bytes": 564
+        },
+        {
+          "comando": "cat /etc/group",
+          "tecnica": "T1087.001",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            6.3,
+            6.3
+          ],
+          "bytes": 445
+        },
+        {
+          "comando": "ps aux",
+          "tecnica": "T1057",
+          "cubierto": true,
+          "coherente": false,
+          "ms": [
+            3.8,
+            10.2
+          ],
+          "bytes": 418
+        },
+        {
+          "comando": "ip a",
+          "tecnica": "T1016",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            6.2,
+            3.3
+          ],
+          "bytes": 504
+        },
+        {
+          "comando": "netstat -tulpn",
+          "tecnica": "T1016",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            5.7,
+            6.7
+          ],
+          "bytes": 547
+        },
+        {
+          "comando": "cat /etc/hosts",
+          "tecnica": "T1016",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            7.2,
+            7.2
+          ],
+          "bytes": 171
+        },
+        {
+          "comando": "df -h",
+          "tecnica": "T1082",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            2.3,
+            5.4
+          ],
+          "bytes": 381
+        },
+        {
+          "comando": "free -h",
+          "tecnica": "T1082",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            3.6,
+            9.3
+          ],
+          "bytes": 206
+        },
+        {
+          "comando": "history",
+          "tecnica": "T1552.001",
+          "cubierto": true,
+          "coherente": false,
+          "ms": [
+            4.4,
+            4.5
+          ],
+          "bytes": 1794
+        },
+        {
+          "comando": "cat /root/.bash_history",
+          "tecnica": "T1552.001",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            4.6,
+            6.3
+          ],
+          "bytes": 765
+        },
+        {
+          "comando": "ls -la /root/.ssh",
+          "tecnica": "T1552.004",
+          "cubierto": false,
+          "coherente": true,
+          "ms": [
+            4.3,
+            2.9
+          ],
+          "bytes": 57
+        },
+        {
+          "comando": "cat /root/.ssh/id_rsa",
+          "tecnica": "T1552.004",
+          "cubierto": false,
+          "coherente": true,
+          "ms": [
+            4.6,
+            1.5
+          ],
+          "bytes": 49
+        },
+        {
+          "comando": "cat /root/.my.cnf",
+          "tecnica": "T1552.001",
+          "cubierto": false,
+          "coherente": true,
+          "ms": [
+            1.1,
+            2.0
+          ],
+          "bytes": 45
+        },
+        {
+          "comando": "crontab -l",
+          "tecnica": "T1053.003",
+          "cubierto": false,
+          "coherente": true,
+          "ms": [
+            4.7,
+            2.3
+          ],
+          "bytes": 33
+        },
+        {
+          "comando": "cat /etc/crontab",
+          "tecnica": "T1053.003",
+          "cubierto": false,
+          "coherente": true,
+          "ms": [
+            2.3,
+            1.9
+          ],
+          "bytes": 44
+        },
+        {
+          "comando": "tail -20 /var/log/auth.log",
+          "tecnica": "T1005",
+          "cubierto": false,
+          "coherente": true,
+          "ms": [
+            2.1,
+            5.4
+          ],
+          "bytes": 76
+        },
+        {
+          "comando": "cat /etc/passwd | grep bash",
+          "tecnica": "T1087.001",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            7.1,
+            4.2
+          ],
+          "bytes": 31
+        },
+        {
+          "comando": "sudo -l",
+          "tecnica": "T1548.003",
+          "cubierto": false,
+          "coherente": true,
+          "ms": [
+            1.4,
+            4.3
+          ],
+          "bytes": 30
+        },
+        {
+          "comando": "which nmap",
+          "tecnica": "T1046",
+          "cubierto": false,
+          "coherente": true,
+          "ms": [
+            3.6,
+            4.7
+          ],
+          "bytes": 0
+        },
+        {
+          "comando": "uptime",
+          "tecnica": "T1082",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            2.4,
+            9.8
+          ],
+          "bytes": 60
+        },
+        {
+          "comando": "lscpu",
+          "tecnica": "T1082",
+          "cubierto": true,
+          "coherente": true,
+          "ms": [
+            13.2,
+            18.2
+          ],
+          "bytes": 2412
+        }
+      ],
+      "divergencia_n": 0,
+      "divergencia": []
+    }
+  ],
+  "recursos": {
+    "honeypot_ssh": {
+      "cpu_pct": {
+        "n": 12,
+        "media": 0.5,
+        "maximo": 1.1
+      },
+      "mem_mib": {
+        "n": 12,
+        "media": 46.4,
+        "maximo": 46.5
+      }
+    },
+    "compare_cowrie": {
+      "cpu_pct": {
+        "n": 8,
+        "media": 1.3,
+        "maximo": 2.9
+      },
+      "mem_mib": {
+        "n": 8,
+        "media": 54.4,
+        "maximo": 54.5
+      }
+    },
+    "eval_real_host": {
+      "cpu_pct": {
+        "n": 9,
+        "media": 0.4,
+        "maximo": 0.8
+      },
+      "mem_mib": {
+        "n": 9,
+        "media": 5.4,
+        "maximo": 5.5
+      }
+    }
+  }
+}
