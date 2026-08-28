@@ -37,7 +37,7 @@
         "ks_p": 0.000156,
         "auc": 1.0,
         "advantage_pct": 100.0,
-        "verdict": "INSUFICIENTE"
+        "verdict": "SEPARABLE"
       },
       "read_small": {
         "n_det": 3,
@@ -180,21 +180,176 @@
       "p99_ms": 963.5,
       "within_target_pct": 100.0,
       "fidelity_pass_pct": 100.0
+    },
+    "tty": {
+      "technique": "T1033",
+      "route": "generative",
+      "n": 3,
+      "mean_ms": 802.2,
+      "median_ms": 729.0,
+      "stdev_ms": 134.4,
+      "min_ms": 720.3,
+      "max_ms": 957.2,
+      "p95_ms": 934.4,
+      "p99_ms": 952.7,
+      "within_target_pct": 100.0,
+      "fidelity_pass_pct": 100.0
+    },
+    "umask": {
+      "technique": "T1082",
+      "route": "generative",
+      "n": 3,
+      "mean_ms": 805.6,
+      "median_ms": 729.3,
+      "stdev_ms": 137.8,
+      "min_ms": 722.7,
+      "max_ms": 964.7,
+      "p95_ms": 941.2,
+      "p99_ms": 960.0,
+      "within_target_pct": 100.0,
+      "fidelity_pass_pct": 100.0
+    },
+    "alias": {
+      "technique": "T1082",
+      "route": "generative",
+      "n": 3,
+      "mean_ms": 805.9,
+      "median_ms": 731.3,
+      "stdev_ms": 136.7,
+      "min_ms": 722.8,
+      "max_ms": 963.8,
+      "p95_ms": 940.5,
+      "p99_ms": 959.1,
+      "within_target_pct": 100.0,
+      "fidelity_pass_pct": 100.0
+    },
+    "wc -l /etc/passwd": {
+      "technique": "T1087.001",
+      "route": "generative",
+      "n": 3,
+      "mean_ms": 808.1,
+      "median_ms": 735.0,
+      "stdev_ms": 134.7,
+      "min_ms": 725.8,
+      "max_ms": 963.6,
+      "p95_ms": 940.7,
+      "p99_ms": 959.0,
+      "within_target_pct": 100.0,
+      "fidelity_pass_pct": 100.0
+    },
+    "head -3 /etc/passwd": {
+      "technique": "T1087.001",
+      "route": "deterministic",
+      "n": 3,
+      "mean_ms": 809.5,
+      "median_ms": 735.6,
+      "stdev_ms": 131.3,
+      "min_ms": 731.8,
+      "max_ms": 961.1,
+      "p95_ms": 938.5,
+      "p99_ms": 956.5,
+      "within_target_pct": 100.0,
+      "fidelity_pass_pct": 100.0
+    },
+    "uname -r": {
+      "technique": "T1082",
+      "route": "deterministic",
+      "n": 3,
+      "mean_ms": 1111.6,
+      "median_ms": 990.1,
+      "stdev_ms": 248.5,
+      "min_ms": 947.1,
+      "max_ms": 1397.5,
+      "p95_ms": 1356.7,
+      "p99_ms": 1389.3,
+      "within_target_pct": 66.7,
+      "fidelity_pass_pct": 100.0
+    },
+    "file /etc/passwd": {
+      "technique": "T1083",
+      "route": "generative",
+      "n": 3,
+      "mean_ms": 805.4,
+      "median_ms": 730.1,
+      "stdev_ms": 138.0,
+      "min_ms": 721.4,
+      "max_ms": 964.7,
+      "p95_ms": 941.3,
+      "p99_ms": 960.0,
+      "within_target_pct": 100.0,
+      "fidelity_pass_pct": 100.0
+    },
+    "printenv HOME": {
+      "technique": "T1082",
+      "route": "generative",
+      "n": 3,
+      "mean_ms": 804.9,
+      "median_ms": 728.6,
+      "stdev_ms": 142.1,
+      "min_ms": 717.3,
+      "max_ms": 968.8,
+      "p95_ms": 944.8,
+      "p99_ms": 964.0,
+      "within_target_pct": 100.0,
+      "fidelity_pass_pct": 100.0
+    },
+    "free -m": {
+      "technique": "T1082",
+      "route": "deterministic",
+      "n": 3,
+      "mean_ms": 866.0,
+      "median_ms": 801.8,
+      "stdev_ms": 120.3,
+      "min_ms": 791.5,
+      "max_ms": 1004.8,
+      "p95_ms": 984.5,
+      "p99_ms": 1000.7,
+      "within_target_pct": 66.7,
+      "fidelity_pass_pct": 100.0
+    },
+    "ss -tulpn": {
+      "technique": "T1049",
+      "route": "deterministic",
+      "n": 3,
+      "mean_ms": 849.7,
+      "median_ms": 781.2,
+      "stdev_ms": 129.0,
+      "min_ms": 769.4,
+      "max_ms": 998.5,
+      "p95_ms": 976.8,
+      "p99_ms": 994.2,
+      "within_target_pct": 100.0,
+      "fidelity_pass_pct": 100.0
+    },
+    "lsblk": {
+      "technique": "T1082",
+      "route": "generative",
+      "n": 3,
+      "mean_ms": 2840.2,
+      "median_ms": 2911.3,
+      "stdev_ms": 176.9,
+      "min_ms": 2638.7,
+      "max_ms": 2970.4,
+      "p95_ms": 2964.5,
+      "p99_ms": 2969.3,
+      "within_target_pct": 0.0,
+      "fidelity_pass_pct": 100.0
+    },
+    "vmstat 1 1": {
+      "technique": "T1082",
+      "route": "generative",
+      "n": 3,
+      "mean_ms": 1236.5,
+      "median_ms": 1258.2,
+      "stdev_ms": 37.6,
+      "min_ms": 1193.1,
+      "max_ms": 1258.2,
+      "p95_ms": 1258.2,
+      "p99_ms": 1258.2,
+      "within_target_pct": 0.0,
+      "fidelity_pass_pct": 100.0
     }
   },
-  "environment": {
-    "model": "qwen2.5-coder:0.5b",
-    "persona": {
-      "hostname": "srv-web-prod-02",
-      "company": "Gazeta Digital",
-      "source": "llm"
-    },
-    "scenarios": [
-      "recon"
-    ],
-    "suites": [
-      "paired"
-    ],
-    "repeat": 3
-  }
+  "rerendered_at": "2026-08-28",
+  "rerender_note": "Mismas muestras que la ejecucion original; se recalculan los agregados tras corregir dos defectos de informe."
 }

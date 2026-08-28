@@ -13,10 +13,22 @@
 | ID | Hipótesis | Criterio de aceptación | Instrumento |
 |---|---|---|---|
 | **H1** | El sistema responde lo bastante rápido como para no delatarse por latencia. | p95 de latencia extremo a extremo por debajo de 1.000 ms. | `benchmarks/latency_benchmark.py` |
+| **H1b** | Un atacante que solo cronometra respuestas no puede saber qué ruta le contestó. | KS no significativo (p ≥ 0,05) y ventaja del clasificador temporal < 20 %, **estratificado por clase de comando**. | `benchmarks/stats.py` |
 | **H2** | Las salidas son fieles a un Ubuntu 22.04 real. | 100 % de las aserciones de fidelidad superadas. | Mismo banco, columna `fidelity_pass` |
 | **H3** | La emulación es coherente consigo misma dentro de una sesión. | `cat /etc/passwd` idéntico entre invocaciones; ficheros creados visibles después. | `tests/test_core.py` |
 | **H4** | El sistema no produce falsos positivos. | Todo evento emitido corresponde a una interacción no autorizada. | Argumento estructural, sección 5 |
 | **H5** | El señuelo sigue siendo creíble si el motor de inferencia cae. | Ninguna traza ni error interno alcanza al atacante. | `tests/test_core.py`, bloque de degradación |
+
+> **H1 y H1b no se cumplen a la vez, y la memoria debe decirlo.** La normalización de latencia
+> (`agents/core/latency.py`) persigue H1b **añadiendo** tiempo: retiene cada respuesta hasta el
+> objetivo que le corresponde a su clase de comando. Eso sube necesariamente el p95 y, en la
+> ejecución de referencia, lo deja en **1.831,9 ms**: H1, tal como está redactada, **no se cumple**.
+>
+> El conflicto no es un fallo, es el hallazgo. Un sistema que responde en 2 ms cumple H1 con
+> holgura y suspende H1b de forma catastrófica, porque la instantaneidad es en sí misma la señal.
+> H1 mide la hipótesis equivocada: importa que la latencia sea **plausible para el comando**, no
+> que sea baja. La redacción correcta para la memoria es la de H1b, y H1 debe reformularse como
+> **«el 83,3 % de las respuestas cae dentro del objetivo de su clase»** o retirarse.
 
 ---
 
@@ -78,6 +90,27 @@ La columna **Aserción** es la comprobación objetiva de fidelidad: subcadenas q
 
 Los casos sin aserción (TC-03, TC-08, TC-18, TC-19, TC-23, TC-25, TC-28) se miden en latencia pero su fidelidad depende de la persona generada, que varía entre despliegues; se evalúan cualitativamente en el capítulo 4.
 
+### 3.1. La suite `paired`: la única que contrasta indistinguibilidad
+
+La matriz anterior mide **cobertura y fidelidad**, y para eso sirve. Pero no puede contrastar H1b, y conviene entender por qué antes de citar ninguna cifra de indistinguibilidad.
+
+El problema es de confusión estadística. La ruta que toma un comando la decide el propio comando, de modo que los comandos que caen a la ruta generativa son también los intrínsecamente más caros en un host real. Comparar `whoami` (determinista, instantáneo de verdad) con `dpkg -l` (generativo, lento de verdad) y concluir que «las rutas difieren» no dice nada sobre el señuelo: diría lo mismo de un servidor legítimo. En `RECON_SEQUENCE` y `GENERATIVE_SEQUENCE` el reparto es casi perfecto por ruta, así que una comparación **dentro de la misma clase de coste** no tiene nada que comparar.
+
+`PAIRED_SEQUENCE` (`benchmarks/latency_benchmark.py`) existe para eso: 18 comandos en tres bloques, escritos para que dentro de cada bloque **cuesten lo mismo en un host real** pero el marco resuelva la mitad por cada ruta.
+
+| Bloque | Coste real | Comandos |
+|---|---|---|
+| `builtin` | casi instantáneo | `whoami`, `pwd`, `hostname`, `tty`, `umask`, `alias` |
+| `read_small` | una lectura corta | `wc -l /etc/passwd`, `head -3 /etc/passwd`, `uname -r`, `stat /etc/passwd`, `file /etc/passwd`, `printenv HOME` |
+| `proc_scan` | lee `/proc` y tablas del sistema | `ps aux`, `df -h`, `free -m`, `ss -tulpn`, `lsblk`, `vmstat 1 1` |
+
+**Toda cifra de indistinguibilidad debe salir de `--suite paired`.** La ejecución de referencia fue `--suite paired --scenario recon --repeat 3` (54 muestras, 27 por ruta).
+
+**Dos defectos conocidos de esta suite, a corregir antes de la ejecución definitiva:**
+
+1. **El equilibrio previsto no se cumple.** La suite está escrita para dar 3 comandos por ruta en cada bloque, pero el reparto real del orquestador no coincide con esa intención: `wc -l /etc/passwd` cae a la ruta generativa y `ss -tulpn` a la determinista. El resultado medido es `builtin` 9/9, `read_small` 3/12 y `proc_scan` 12/6 muestras. **Solo `builtin` sostiene un contraste con potencia.** El arreglo es reasignar esos dos comandos a su bloque real, o sustituirlos por otros cuyo reparto se haya comprobado con `/session/command` antes de medir.
+2. **La ejecución versionada se midió con un clasificador ya corregido.** `classify()` etiquetaba `uname -r` como clase `heavy` al confundir el flag `-r` con recursión; el arreglo y el CSV entraron en el mismo commit. Por eso `heavy` aparece en `RESULTS.md` con una sola ruta. Al volver a medir, esas tres muestras pasan a `read_small` y la estratificación cambia.
+
 ---
 
 ## 4. Escenarios
@@ -98,12 +131,21 @@ docker compose up -d --build
 # 2. Confirmar que el orquestador está listo
 curl -s http://127.0.0.1:8000/stats | python -m json.tool
 
-# 3. Suite offline de coherencia (H3, H5) -- no necesita Docker
-python tests/test_core.py
+# 3. Suites offline de coherencia (H3, H5) -- no necesitan Docker
+python tests/test_core.py           # 81/81
+python tests/test_evaluation.py     # 56/56
 
-# 4. Banco de latencia y fidelidad (H1, H2)
-python benchmarks/latency_benchmark.py --scenario both --repeat 5
+# 4. Cobertura y fidelidad (H2): la matriz de 30 + 10 comandos
+python benchmarks/latency_benchmark.py --suite both --scenario both --repeat 5
+
+# 5. Indistinguibilidad temporal (H1b): la unica suite valida para esto
+python benchmarks/latency_benchmark.py --suite paired --scenario recon --repeat 5
+
+# 6. Credibilidad del contenido (H6): ver docs/05
+python evaluation/run_deception_eval.py --sessions 8
 ```
+
+Los pasos 4 y 5 escriben en el mismo `--outdir` y **el segundo sobrescribe al primero**. Usa `--outdir` distintos si necesitas conservar los dos, que es lo habitual: el 4 alimenta el apartado de fidelidad y el 5 el de indistinguibilidad.
 
 **Documentar siempre junto a los resultados:** modelo de CPU, núcleos, RAM, si Docker corre sobre WSL2 o Linux nativo, presencia o ausencia de GPU, y la etiqueta exacta del modelo. La latencia de inferencia depende por completo del hardware, y un resultado sin su entorno no es reproducible.
 
@@ -124,7 +166,9 @@ Esta propiedad tiene dos condiciones de contorno que conviene declarar en el cap
 
 ## 7. Limitaciones de la Evaluación
 
-* **Un solo modelo.** Toda la evaluación usa `qwen2.5-coder:3b`. Una comparativa entre modelos y niveles de cuantización queda como trabajo futuro.
+* **Un solo modelo medido de extremo a extremo.** Toda la evaluación usa `qwen2.5-coder:0.5b`. El `3b` está documentado y justificado (README §4) pero **no medido**: no hay una ejecución del banco con él. La comparación entre los dos, y entre niveles de cuantización, queda como trabajo futuro y es la primera medida que haría falta para sostener el capítulo 4 en su forma completa.
 * **Sin adversario humano.** El banco ejecuta una secuencia fija. No mide si un operador de *red team* con experiencia identificaría el entorno; eso requiere un estudio con sujetos, fuera del alcance.
-* **La fidelidad se mide por subcadenas.** Una salida puede contener los tokens esperados y aun así resultar poco creíble en conjunto. La aserción es una cota inferior de fidelidad, no una medida de realismo.
-* **Sin línea base comparativa medida.** La comparación con Cowrie/Dionaea del apartado 4.4 de la memoria es cualitativa salvo que se despliegue Cowrie y se le pase el mismo banco de pruebas, lo cual es recomendable si el calendario lo permite.
+* **La fidelidad se mide por subcadenas.** Una salida puede contener los tokens esperados y aun así resultar poco creíble en conjunto. La aserción es una cota inferior de fidelidad, no una medida de realismo. Para la ruta determinista, que genera esas salidas desde plantillas, un 100 % es casi tautológico. La credibilidad se mide en `docs/05`, no aquí.
+* **La normalización no cierra el canal en todas las clases.** En la ejecución de referencia la clase `proc_scan` sigue siendo **perfectamente separable** (AUC = 1,0, p = 0,000156): la salida generativa de esa clase desborda su objetivo y el relleno no puede recuperarlo. Se declara en el README §8 y es un problema de ajuste abierto, no un resultado cerrado.
+* **El canal lateral externo sigue abierto.** La normalización iguala las dos rutas *internas*, pero el señuelo responde dos órdenes de magnitud más lento que un `sshd` real (`benchmarks/results/COMPARISON.md`). Un adversario con un servidor legítimo de la misma organización como término de comparación lo separa por tiempo. Es la limitación más seria del trabajo.
+* **La comparativa con Cowrie ya está medida; Dionaea no.** El apartado 4.4 tiene tres brazos medidos con el mismo instrumento —marco generativo, Cowrie y host Debian real— en `benchmarks/cowrie_comparison.py`. Dionaea queda fuera: es un honeypot de baja interacción multi-protocolo y no ofrece una shell SSH que interrogar con la misma batería, de modo que incluirlo sería comparar instrumentos distintos.

@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Senuelo SSH de ciberengano generativo multi-agente: como funciona, que se midio y como levantarlo para una demostracion en vivo. TFM, Master en Ciberseguridad, UCM.">
+<meta name="author" content="Maria Celeste Montoya Bonilla">
+<title>Generative Deception Framework</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+
+<style>
+/* ---------------------------------------------------------------------------
+   Paleta derivada del propio sistema: las dos rutas tienen su color, y todo el
+   argumento del trabajo es que el atacante no debe poder distinguirlas.
+   --------------------------------------------------------------------------- */
+:root {
+  --paper:      #FAFAF7;
+  --surface:    #FFFFFF;
+  --surface-2:  #F2F3EF;
+  --ink:        #15181C;
+  --ink-2:      #454B52;
+  --ink-3:      #6E757D;
+  --rule:       #DDDFD8;
+  --rule-firm:  #C3C6BE;
+
+  --det:        #14655C;
+  --det-soft:   #DDEBE8;
+  --gen:        #8E3F60;
+  --gen-soft:   #F3E1E8;
+  --signal:     #A76D0C;
+  --signal-soft:#F6ECD8;
+
+  --ok:         #2A6B4A;
+  --warn:       #A6431C;
+  --crit:       #97231C;
+
+  --term-bg:    #14181D;
+  --term-fg:    #DDE3E1;
+  --term-dim:   #7C8A88;
+  --term-rule:  #2A3138;
+
+  --shadow:     0 1px 2px rgba(21,24,28,.05), 0 8px 24px -16px rgba(21,24,28,.28);
+  --measure:    68ch;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper:      #101317;
+    --surface:    #171B20;
+    --surface-2:  #1E232A;
+    --ink:        #E7EAE6;
+    --ink-2:      #AFB6B4;
+    --ink-3:      #838B8A;
+    --rule:       #2A3037;
+    --rule-firm:  #3C444C;
+
+    --det:        #5FBFAF;
+    --det-soft:   #16302E;
+    --gen:        #DE8FAC;
+    --gen-soft:   #33202A;
+    --signal:     #E0A94A;
+    --signal-soft:#2E2618;
+
+    --ok:         #6BBE8E;
+    --warn:       #E4885C;
+    --crit:       #E4776C;
+
+    --term-bg:    #0B0E11;
+    --term-fg:    #DDE3E1;
+    --term-dim:   #6F7C7A;
+    --term-rule:  #232A31;
+
+    --shadow:     0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+  }
+}
+
+:root[data-theme="dark"] {
+  --paper:#101317; --surface:#171B20; --surface-2:#1E232A;
+  --ink:#E7EAE6; --ink-2:#AFB6B4; --ink-3:#838B8A;
+  --rule:#2A3037; --rule-firm:#3C444C;
+  --det:#5FBFAF; --det-soft:#16302E; --gen:#DE8FAC; --gen-soft:#33202A;
+  --signal:#E0A94A; --signal-soft:#2E2618;
+  --ok:#6BBE8E; --warn:#E4885C; --crit:#E4776C;
+  --term-bg:#0B0E11; --term-fg:#DDE3E1; --term-dim:#6F7C7A; --term-rule:#232A31;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 16.5px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.wrap { max-width: 1040px; margin: 0 auto; padding: 0 28px 96px; }
+.col  { max-width: var(--measure); }
+
+/* --- tipografia ---------------------------------------------------------- */
+h1, h2, h3, h4 { font-family: Newsreader, ui-serif, Georgia, serif; font-weight: 500;
+                 text-wrap: balance; margin: 0; letter-spacing: -.008em; }
+h1 { font-size: clamp(2.4rem, 5.6vw, 3.5rem); line-height: 1.06; letter-spacing: -.022em; }
+h2 { font-size: clamp(1.6rem, 3vw, 2.05rem); line-height: 1.18; }
+h3 { font-size: 1.24rem; line-height: 1.3; font-weight: 600; }
+h4 { font-family: "IBM Plex Sans", sans-serif; font-size: .78rem; font-weight: 600;
+     letter-spacing: .11em; text-transform: uppercase; color: var(--ink-3); }
+p  { margin: 0 0 1.05em; }
+a  { color: inherit; text-decoration-color: var(--rule-firm); text-underline-offset: 3px; }
+a:hover { text-decoration-color: currentColor; }
+:focus-visible { outline: 2px solid var(--signal); outline-offset: 3px; border-radius: 2px; }
+strong { font-weight: 600; }
+code, kbd, samp { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.lede { font-family: Newsreader, serif; font-size: 1.3rem; line-height: 1.5; color: var(--ink-2); }
+.eyebrow { font-size: .74rem; font-weight: 600; letter-spacing: .15em; text-transform: uppercase;
+           color: var(--ink-3); margin: 0 0 1.1rem; }
+.note { font-size: .93rem; color: var(--ink-2); }
+
+/* --- estructura ---------------------------------------------------------- */
+header.hero { padding: clamp(56px, 9vw, 104px) 0 0; }
+.byline { font-size: .9rem; color: var(--ink-3); margin-top: 1.6rem;
+          padding-top: 1.1rem; border-top: 1px solid var(--rule); max-width: var(--measure); }
+
+section { padding-top: clamp(56px, 7vw, 88px); }
+section > h2 { margin-bottom: .5rem; }
+section > p.section-sub { color: var(--ink-2); max-width: var(--measure); margin-bottom: 2rem; }
+
+.sec-mark { display: flex; align-items: baseline; gap: .8rem; margin-bottom: .9rem; }
+.sec-mark .n { font-family: "IBM Plex Mono", monospace; font-size: .8rem; font-weight: 500;
+               color: var(--ink-3); letter-spacing: .04em; }
+
+/* --- tira de cifras ------------------------------------------------------ */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+         gap: 1px; background: var(--rule); border: 1px solid var(--rule);
+         margin-top: 2.6rem; border-radius: 3px; overflow: hidden; }
+.stat { background: var(--surface); padding: 1.05rem 1.15rem; }
+.stat .v { font-family: "IBM Plex Mono", monospace; font-size: 1.55rem; font-weight: 500;
+           font-variant-numeric: tabular-nums; letter-spacing: -.02em; display: block; }
+.stat .k { font-size: .76rem; color: var(--ink-3); line-height: 1.35; display: block; margin-top: .25rem; }
+
+/* --- tarjetas ------------------------------------------------------------ */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(232px, 1fr)); gap: 14px; }
+.card { background: var(--surface); border: 1px solid var(--rule); border-radius: 4px;
+        padding: 1.15rem 1.2rem 1.25rem; box-shadow: var(--shadow); }
+.card h3 { font-family: "IBM Plex Sans", sans-serif; font-size: .98rem; margin-bottom: .1rem; }
+.card .when { font-family: "IBM Plex Mono", monospace; font-size: .72rem; color: var(--ink-3);
+              display: block; margin-bottom: .6rem; }
+.card p { font-size: .92rem; color: var(--ink-2); margin: 0 0 .55rem; }
+.card .file { font-family: "IBM Plex Mono", monospace; font-size: .74rem; color: var(--ink-3); }
+
+/* --- terminal ------------------------------------------------------------ */
+.term { background: var(--term-bg); border-radius: 5px;
+        border: 1px solid var(--term-rule); overflow: hidden; margin: 1.1rem 0 1.4rem; }
+.term .bar { display: flex; align-items: center; gap: .5rem; padding: .42rem .8rem;
+             border-bottom: 1px solid var(--term-rule); font-family: "IBM Plex Mono", monospace;
+             font-size: .7rem; color: var(--term-dim); letter-spacing: .04em; }
+.term .bar .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--term-rule); }
+.term pre { margin: 0; padding: .85rem 1rem 1rem; overflow-x: auto; color: var(--term-fg);
+            font-family: "IBM Plex Mono", monospace; font-size: .845rem; line-height: 1.62; }
+.term .p  { color: var(--det); }
+.term .c  { color: var(--term-fg); }
+.term .o  { color: var(--term-dim); }
+.term .hl { color: var(--signal); }
+
+/* --- tablas -------------------------------------------------------------- */
+.tw { overflow-x: auto; margin: 1.2rem 0 1.4rem; border: 1px solid var(--rule); border-radius: 4px;
+      background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td { text-align: left; padding: .62rem .85rem; border-bottom: 1px solid var(--rule);
+         vertical-align: top; }
+thead th { font-size: .73rem; font-weight: 600; letter-spacing: .07em; text-transform: uppercase;
+           color: var(--ink-3); background: var(--surface-2); white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+td.num, th.num { text-align: right; font-family: "IBM Plex Mono", monospace;
+                 font-variant-numeric: tabular-nums; white-space: nowrap; }
+td code { font-size: .84em; }
+
+/* --- etiquetas ----------------------------------------------------------- */
+.tag { display: inline-block; font-family: "IBM Plex Mono", monospace; font-size: .7rem;
+       font-weight: 500; letter-spacing: .05em; padding: .12rem .45rem; border-radius: 3px;
+       border: 1px solid currentColor; white-space: nowrap; }
+.tag.det { color: var(--det); background: var(--det-soft); }
+.tag.gen { color: var(--gen); background: var(--gen-soft); }
+.tag.ok   { color: var(--ok); }
+.tag.warn { color: var(--warn); }
+
+/* --- llamadas ------------------------------------------------------------ */
+.call { border-left: 3px solid var(--rule-firm); padding: .15rem 0 .15rem 1.05rem;
+        margin: 1.3rem 0; max-width: var(--measure); }
+.call.warn { border-left-color: var(--warn); }
+.call h4 { margin-bottom: .35rem; color: var(--ink-2); }
+.call p:last-child { margin-bottom: 0; }
+
+/* --- runbook ------------------------------------------------------------- */
+.steps { border-top: 1px solid var(--rule); }
+.step { display: grid; grid-template-columns: 2.6rem 1fr; gap: 0 1.1rem;
+        padding: 1.5rem 0; border-bottom: 1px solid var(--rule); }
+.step .n { font-family: "IBM Plex Mono", monospace; font-size: 1.05rem; font-weight: 500;
+           color: var(--ink-3); font-variant-numeric: tabular-nums; padding-top: .1rem; }
+.step h3 { margin-bottom: .45rem; font-family: "IBM Plex Sans", sans-serif; font-size: 1.02rem; }
+.step .body { min-width: 0; }
+.say { background: var(--surface-2); border-radius: 4px; padding: .7rem .9rem;
+       font-family: Newsreader, serif; font-size: 1.02rem; font-style: italic;
+       color: var(--ink-2); margin: .8rem 0 0; }
+.say::before { content: "Qué decir"; display: block; font-family: "IBM Plex Sans", sans-serif;
+               font-style: normal; font-size: .68rem; font-weight: 600; letter-spacing: .11em;
+               text-transform: uppercase; color: var(--ink-3); margin-bottom: .35rem; }
+.expect { font-size: .9rem; color: var(--ink-2); margin: .55rem 0 0; }
+.expect b { font-weight: 600; color: var(--ink); }
+
+/* --- figuras ------------------------------------------------------------- */
+figure { margin: 1.6rem 0 1.8rem; }
+figure .fw { overflow-x: auto; background: var(--surface); border: 1px solid var(--rule);
+             border-radius: 4px; padding: 1.2rem 1rem; }
+figure svg { display: block; width: 100%; height: auto; min-width: 520px; }
+figcaption { font-size: .85rem; color: var(--ink-3); margin-top: .7rem; max-width: var(--measure); }
+
+svg text { font-family: "IBM Plex Sans", sans-serif; }
+svg .mono { font-family: "IBM Plex Mono", monospace; }
+
+footer { padding-top: clamp(48px, 6vw, 72px); margin-top: 4rem; border-top: 1px solid var(--rule);
+         font-size: .88rem; color: var(--ink-3); }
+
+@media (max-width: 620px) {
+  .wrap { padding: 0 18px 72px; }
+  .step { grid-template-columns: 1fr; gap: .3rem; }
+  .step .n { font-size: .8rem; }
+}
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<header class="hero">
+  <p class="eyebrow">Trabajo Fin de Máster · Máster en Ciberseguridad · Universidad Complutense de Madrid</p>
+  <h1>Generative&nbsp;Deception<br>Framework</h1>
+  <p class="lede col" style="margin-top:1.2rem">Un señuelo SSH que no sirve respuestas pregrabadas: mantiene una identidad de host coherente, la puebla con artefactos sintéticos y resuelve cada comando con cuatro agentes apoyados en un modelo de lenguaje que corre en local. El objetivo no es engañar una vez, sino <em>no ser reconocido</em>.</p>
+
+  <div class="stats">
+    <div class="stat"><span class="v">54</span><span class="k">muestras de latencia<br>en la ejecución de referencia</span></div>
+    <div class="stat"><span class="v">156</span><span class="k">comprobaciones offline<br>sin Docker ni Ollama</span></div>
+    <div class="stat"><span class="v">10/10</span><span class="k">reglas de Wazuh validadas<br>contra un manager real</span></div>
+    <div class="stat"><span class="v">3</span><span class="k">brazos comparados con<br>el mismo instrumento</span></div>
+  </div>
+
+  <p class="byline">María Celeste Montoya Bonilla · Tutores: Prof. Javier Domínguez Gómez y Prof. Román Ramírez Giménez<br>
+  Esta página es el guion de la demostración: cómo funciona, qué se midió y cómo levantarlo en vivo.</p>
+</header>
+
+<section id="problema">
+  <div class="sec-mark"><span class="n">01</span><h4>El problema</h4></div>
+  <h2>Un honeypot estático se identifica en segundos</h2>
+  <div class="col">
+    <p>No hace falta un exploit. Basta con mirar: no hay <code>.bash_history</code>, los logs están congelados en el instante del despliegue, los servicios no responden como responderían de verdad y el mismo comando ejecutado dos veces devuelve cosas distintas. Un atacante con oficio lo descarta y se va a buscar la máquina real, que es exactamente lo contrario de lo que un señuelo debe conseguir.</p>
+    <p>Este trabajo ataca esas cuatro señales a la vez. Y al hacerlo aparece una quinta, que resultó ser la más interesante del proyecto: <strong>el propio motor de inferencia delata al señuelo por el tiempo que tarda en responder.</strong></p>
+  </div>
+</section>
+
+<section id="arquitectura">
+  <div class="sec-mark"><span class="n">02</span><h4>Arquitectura</h4></div>
+  <h2>Tres contenedores, una sola puerta</h2>
+  <p class="section-sub">Solo el señuelo SSH se publica al exterior. El orquestador y el motor de inferencia viven en la red interna y se publican únicamente en <code>127.0.0.1</code>, para que el banco de pruebas pueda medirlos sin que el atacante pueda alcanzarlos.</p>
+
+  <figure>
+    <div class="fw">
+      <svg viewBox="0 0 900 300" role="img" aria-label="Topología: el atacante llega por SSH al señuelo, que consulta al orquestador, que consulta al motor de inferencia; el orquestador escribe telemetría hacia el SIEM.">
+        <defs>
+          <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" fill="currentColor"></path>
+          </marker>
+        </defs>
+
+        <rect x="196" y="20" width="688" height="200" rx="6" fill="none"
+              stroke="var(--rule-firm)" stroke-width="1" stroke-dasharray="5 4"></rect>
+        <text x="210" y="40" class="mono" font-size="11" fill="var(--ink-3)">deception-net · bridge aislado</text>
+
+        <g color="var(--ink-3)">
+          <rect x="12" y="86" width="118" height="62" rx="4" fill="var(--surface-2)" stroke="var(--rule-firm)"></rect>
+          <text x="71" y="112" text-anchor="middle" font-size="13.5" font-weight="600" fill="var(--ink)">Atacante</text>
+          <text x="71" y="130" text-anchor="middle" class="mono" font-size="10.5" fill="var(--ink-3)">red no confiable</text>
+          <line x1="132" y1="117" x2="212" y2="117" stroke="currentColor" stroke-width="1.4" marker-end="url(#ah)"></line>
+          <text x="172" y="108" text-anchor="middle" class="mono" font-size="10" fill="var(--ink-3)">SSH :2222</text>
+        </g>
+
+        <g>
+          <rect x="216" y="80" width="152" height="74" rx="4" fill="var(--surface)" stroke="var(--crit)" stroke-width="1.6"></rect>
+          <text x="292" y="104" text-anchor="middle" font-size="13.5" font-weight="600" fill="var(--ink)">ssh-decoy</text>
+          <text x="292" y="121" text-anchor="middle" class="mono" font-size="10.5" fill="var(--ink-3)">paramiko</text>
+          <text x="292" y="140" text-anchor="middle" class="mono" font-size="10" fill="var(--crit)" letter-spacing="1">EXPUESTO</text>
+        </g>
+
+        <g color="var(--ink-3)">
+          <line x1="370" y1="117" x2="446" y2="117" stroke="currentColor" stroke-width="1.4" marker-end="url(#ah)"></line>
+          <text x="408" y="108" text-anchor="middle" class="mono" font-size="10" fill="var(--ink-3)">HTTP</text>
+          <rect x="450" y="72" width="168" height="90" rx="4" fill="var(--surface)" stroke="var(--rule-firm)" stroke-width="1.4"></rect>
+          <text x="534" y="96" text-anchor="middle" font-size="13.5" font-weight="600" fill="var(--ink)">deception-agent</text>
+          <text x="534" y="113" text-anchor="middle" class="mono" font-size="10.5" fill="var(--ink-3)">4 agentes · :8000</text>
+          <text x="534" y="132" text-anchor="middle" class="mono" font-size="10" fill="var(--ink-3)" letter-spacing="1">INTERNO</text>
+          <text x="534" y="150" text-anchor="middle" class="mono" font-size="9.5" fill="var(--ink-3)">resolución híbrida</text>
+        </g>
+
+        <g color="var(--ink-3)">
+          <line x1="620" y1="117" x2="696" y2="117" stroke="currentColor" stroke-width="1.4" marker-end="url(#ah)"></line>
+          <text x="658" y="108" text-anchor="middle" class="mono" font-size="10" fill="var(--ink-3)">HTTP</text>
+          <rect x="700" y="80" width="164" height="74" rx="4" fill="var(--surface)" stroke="var(--gen)" stroke-width="1.4"></rect>
+          <text x="782" y="104" text-anchor="middle" font-size="13.5" font-weight="600" fill="var(--ink)">ollama-llm</text>
+          <text x="782" y="121" text-anchor="middle" class="mono" font-size="10.5" fill="var(--gen)">qwen2.5-coder:0.5b</text>
+          <text x="782" y="140" text-anchor="middle" class="mono" font-size="10" fill="var(--ink-3)" letter-spacing="1">INTERNO</text>
+        </g>
+
+        <g color="var(--signal)">
+          <line x1="534" y1="164" x2="534" y2="234" stroke="currentColor" stroke-width="1.4" marker-end="url(#ah)"></line>
+          <rect x="404" y="238" width="262" height="46" rx="4" fill="var(--signal-soft)" stroke="var(--signal)" stroke-width="1.2"></rect>
+          <text x="535" y="257" text-anchor="middle" class="mono" font-size="11" fill="var(--signal)">deception-events.jsonl</text>
+          <text x="535" y="273" text-anchor="middle" font-size="11" fill="var(--ink-2)">→ Wazuh · MITRE ATT&amp;CK · severidad</text>
+        </g>
+      </svg>
+    </div>
+    <figcaption>El señuelo solo habla SSH: no tiene persona, ni artefactos, ni acceso al modelo. Si alguien lo compromete, no se lleva nada.</figcaption>
+  </figure>
+
+  <h3 style="margin-bottom:.9rem">Los cuatro agentes</h3>
+  <div class="cards">
+    <div class="card">
+      <h3>Persona</h3><span class="when">arranque · 1 vez</span>
+      <p><em>Quién dice ser</em> el host: empresa, dominio, usuarios, <code>/etc/passwd</code>, red, procesos. Una sola llamada al modelo genera la narrativa; el resto se renderiza de forma determinista para que el host siga siendo el mismo host.</p>
+      <span class="file">roles/persona.py</span>
+    </div>
+    <div class="card">
+      <h3>Artefactos</h3><span class="when">arranque + hilo continuo</span>
+      <p><em>Qué hay</em> en el host: sistema de ficheros virtual, honeytokens con identificador rastreable, <code>.bash_history</code> generado y un hilo que sigue escribiendo en los logs. Un <code>tail -f</code> ve peticiones llegando, no un fichero congelado.</p>
+      <span class="file">roles/artifacts.py</span>
+    </div>
+    <div class="card">
+      <h3>Terminal</h3><span class="when">por comando</span>
+      <p><em>Qué responde</em> el host. Decide la ruta, aplica las tuberías, mantiene el estado de sesión y filtra la salida del modelo: cualquier respuesta que rompa el personaje se descarta y se sustituye por un error de bash creíble.</p>
+      <span class="file">roles/terminal.py</span>
+    </div>
+    <div class="card">
+      <h3>Alertas</h3><span class="when">por evento</span>
+      <p><em>Qué se le cuenta al SOC</em>: técnica ATT&amp;CK, severidad, nivel de Wazuh y honeytokens implicados, en JSON Lines. Toda interacción es no autorizada por construcción, así que la confianza es fija: <code>confirmed</code>.</p>
+      <span class="file">roles/alerting.py</span>
+    </div>
+  </div>
+</section>
+
+<section id="rutas">
+  <div class="sec-mark"><span class="n">03</span><h4>La decisión de diseño central</h4></div>
+  <h2>Dos rutas, y el problema que crean</h2>
+  <p class="section-sub">Cada comando toma una de dos rutas. La división compra dos propiedades que están en tensión directa: coherencia exacta y cobertura ilimitada.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Ruta</th><th>Qué resuelve</th><th class="num">Coste de cómputo</th><th>Qué aporta</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="tag det">DETERMINISTA</span></td>
+          <td>Reconocimiento: <code>whoami</code>, <code>uname</code>, <code>cat /etc/passwd</code>, <code>ls</code>, <code>ps</code>, <code>ip a</code>… resuelto desde la persona y el sistema de ficheros de artefactos.</td>
+          <td class="num">~2 ms</td>
+          <td>Coherencia exacta y estable durante toda la sesión.</td>
+        </tr>
+        <tr>
+          <td><span class="tag gen">GENERATIVA</span></td>
+          <td>Todo lo demás, enviado al modelo local con la persona y los últimos turnos como contexto.</td>
+          <td class="num">~2.044 ms</td>
+          <td>Cobertura ilimitada de comandos, sin respuestas pregrabadas.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="col">
+    <p>Enviar <em>todos</em> los comandos al modelo sería más simple y peor: gastaría el presupuesto de latencia en trivialidades y devolvería un <code>/etc/passwd</code> distinto cada vez, que es justamente la incoherencia que delata la trampa. No enviar <em>ninguno</em> reconstruiría un honeypot estático.</p>
+  </div>
+
+  <div class="call warn">
+    <h4>Y aquí aparece la quinta señal</h4>
+    <p>Esas dos cifras —2 ms y 2.044 ms— no son solo un problema de rendimiento. Son <strong>dos poblaciones limpias, estrechas y separadas por dos segundos</strong>. Ningún host real se comporta así. Un atacante que se limite a cronometrar respuestas las reparte en dos cubos y deduce que detrás de algunas hay un modelo de lenguaje, y por tanto que el host es un señuelo. Bajar el coste de inferencia no lo arregla: la señal no es la magnitud, es la <strong>bimodalidad</strong>.</p>
+  </div>
+
+  <h3 style="margin-top:2.2rem">La solución: la latencia depende del comando, nunca de la ruta</h3>
+
+  <figure>
+    <div class="fw">
+      <svg viewBox="0 0 900 320" role="img" aria-label="Comparación de distribuciones de latencia antes y después de la normalización: sin normalizar hay dos grupos separados, en 2 milisegundos y en 2044 milisegundos; con normalización ambos grupos se solapan alrededor de 850 a 1090 milisegundos, con una cola del 13 por ciento que desborda.">
+        <text x="0" y="18" font-size="12.5" font-weight="600" fill="var(--ink)">Sin normalizar</text>
+        <text x="0" y="35" class="mono" font-size="10.5" fill="var(--warn)">SEPARABLE · el atacante acierta el 100 %</text>
+
+        <line x1="0" y1="86" x2="880" y2="86" stroke="var(--rule)" stroke-width="1"></line>
+        <g class="mono" font-size="9.5" fill="var(--ink-3)">
+          <text x="0" y="102">0 ms</text>
+          <text x="418" y="102" text-anchor="middle">1.000</text>
+          <text x="836" y="102" text-anchor="middle">2.000</text>
+        </g>
+
+        <g fill="var(--det)">
+          <circle cx="6"  cy="72" r="4.5" opacity=".85"></circle><circle cx="12" cy="80" r="4.5" opacity=".85"></circle>
+          <circle cx="9"  cy="64" r="4.5" opacity=".85"></circle><circle cx="15" cy="72" r="4.5" opacity=".85"></circle>
+          <circle cx="4"  cy="80" r="4.5" opacity=".85"></circle>
+        </g>
+        <text x="30" y="62" font-size="11" fill="var(--det)" font-weight="600">determinista · 2,4 ms</text>
+
+        <g fill="var(--gen)">
+          <circle cx="854" cy="72" r="4.5" opacity=".85"></circle><circle cx="860" cy="80" r="4.5" opacity=".85"></circle>
+          <circle cx="857" cy="64" r="4.5" opacity=".85"></circle><circle cx="863" cy="72" r="4.5" opacity=".85"></circle>
+          <circle cx="851" cy="80" r="4.5" opacity=".85"></circle>
+        </g>
+        <text x="838" y="62" text-anchor="end" font-size="11" fill="var(--gen)" font-weight="600">generativa · 2.044,4 ms</text>
+
+        <line x1="26" y1="118" x2="836" y2="118" stroke="var(--warn)" stroke-width="1" stroke-dasharray="3 3"></line>
+        <text x="431" y="134" text-anchor="middle" class="mono" font-size="10.5" fill="var(--warn)">dos segundos de brecha · ningún host real hace esto</text>
+
+        <line x1="0" y1="164" x2="880" y2="164" stroke="var(--rule)" stroke-width="1"></line>
+
+        <text x="0" y="196" font-size="12.5" font-weight="600" fill="var(--ink)">Con normalización</text>
+        <text x="0" y="213" class="mono" font-size="10.5" fill="var(--ok)">INDISTINGUIBLE en la clase con potencia · KS p = 0,957 · AUC = 0,494</text>
+
+        <line x1="0" y1="272" x2="880" y2="272" stroke="var(--rule)" stroke-width="1"></line>
+        <g class="mono" font-size="9.5" fill="var(--ink-3)">
+          <text x="0" y="288">0 ms</text>
+          <text x="418" y="288" text-anchor="middle">1.000</text>
+          <text x="836" y="288" text-anchor="middle">2.000</text>
+        </g>
+
+        <rect x="330" y="228" width="140" height="44" fill="var(--surface-2)" stroke="var(--rule)" stroke-dasharray="3 3"></rect>
+        <g fill="var(--det)">
+          <circle cx="342" cy="242" r="4.5" opacity=".85"></circle><circle cx="356" cy="258" r="4.5" opacity=".85"></circle>
+          <circle cx="349" cy="250" r="4.5" opacity=".85"></circle><circle cx="364" cy="240" r="4.5" opacity=".85"></circle>
+          <circle cx="372" cy="256" r="4.5" opacity=".85"></circle>
+        </g>
+        <g fill="var(--gen)">
+          <circle cx="386" cy="248" r="4.5" opacity=".85"></circle><circle cx="401" cy="240" r="4.5" opacity=".85"></circle>
+          <circle cx="394" cy="258" r="4.5" opacity=".85"></circle><circle cx="416" cy="250" r="4.5" opacity=".85"></circle>
+          <circle cx="430" cy="243" r="4.5" opacity=".85"></circle>
+        </g>
+        <text x="484" y="244" font-size="11" fill="var(--ink-2)">las dos rutas caen en la misma banda</text>
+        <text x="484" y="260" class="mono" font-size="10" fill="var(--ink-3)">855,6 ms · 1.086,6 ms de media</text>
+
+        <g fill="var(--gen)">
+          <circle cx="800" cy="250" r="4.5" opacity=".85"></circle><circle cx="812" cy="243" r="4.5" opacity=".85"></circle>
+          <circle cx="822" cy="256" r="4.5" opacity=".85"></circle>
+        </g>
+        <line x1="792" y1="228" x2="792" y2="272" stroke="var(--warn)" stroke-width="1" stroke-dasharray="2 3"></line>
+        <text x="786" y="222" text-anchor="end" class="mono" font-size="10" fill="var(--warn)">12,96 % desborda y no admite relleno</text>
+      </svg>
+    </div>
+    <figcaption>Cifras medidas: las de arriba proceden del docstring de <code>agents/core/latency.py</code>; las de abajo, de <code>benchmarks/results/RESULTS.md</code>. La cola que desborda es toda de la clase <code>proc_scan</code>, y es la razón de que esa clase siga siendo separable.</figcaption>
+  </figure>
+
+  <div class="col">
+    <p>Antes de resolver nada, el orquestador sortea el <strong>objetivo temporal</strong> de ese comando a partir de su clase de coste —<code>builtin</code>, <code>read_small</code>, <code>list_dir</code>, <code>proc_scan</code>, <code>net_probe</code>, <code>heavy</code>— con la mediana y la dispersión que ese tipo de comando tendría en un servidor real. Resuelva quien resuelva, la respuesta se retiene hasta que el objetivo se agota:</p>
+    <p style="text-align:center; font-family:'IBM Plex Mono',monospace; font-size:.95rem; padding:.7rem 0; color:var(--ink-2)">
+      L = rtt(sesión) + coste_ejecución(clase_del_comando) + jitter
+    </p>
+    <p><strong>El relleno solo puede añadir tiempo, nunca quitarlo.</strong> Cuando la ruta generativa desborda su objetivo, el retraso ya no se puede devolver y esa muestra sigue siendo separable. Esos desbordamientos se cuentan y se reportan en lugar de esconderse: el porcentaje de exceso es la medida real de si la normalización se sostiene.</p>
+  </div>
+</section>
+
+<section id="medido">
+  <div class="sec-mark"><span class="n">04</span><h4>Lo que se midió</h4></div>
+  <h2>Resultados, con sus salvedades</h2>
+  <p class="section-sub">Ninguna cifra de esta sección está escrita a mano: todas proceden de informes que los propios bancos de pruebas regeneran. Las salvedades también están medidas.</p>
+
+  <h3>Indistinguibilidad temporal</h3>
+  <p class="col note">Ejecución de referencia: <code>--suite paired --scenario recon --repeat 3</code>. 54 muestras, 27 por ruta.</p>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Clase de comando</th><th class="num">n det.</th><th class="num">n gen.</th><th class="num">KS p</th><th class="num">AUC</th><th class="num">Ventaja</th><th>Veredicto</th></tr></thead>
+      <tbody>
+        <tr><td><code>builtin</code></td><td class="num">9</td><td class="num">9</td><td class="num">0,957</td><td class="num">0,494</td><td class="num">1,2 %</td><td><span class="tag ok">INDISTINGUIBLE</span></td></tr>
+        <tr><td><code>proc_scan</code></td><td class="num">12</td><td class="num">6</td><td class="num">0,000156</td><td class="num">1,00</td><td class="num">100 %</td><td><span class="tag warn">SEPARABLE</span></td></tr>
+        <tr><td><code>read_small</code></td><td class="num">3</td><td class="num">12</td><td class="num">0,669</td><td class="num">0,444</td><td class="num">11,1 %</td><td class="note">muestra insuficiente</td></tr>
+        <tr><td><code>heavy</code></td><td class="num">3</td><td class="num">0</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="note">solo una ruta alcanza la clase</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="call warn">
+    <h4>La lectura honesta</h4>
+    <p>El veredicto <em>global</em> es indistinguible, pero el global está confundido: la ruta que toma un comando la decide el propio comando, así que los comandos de la ruta lenta son también los intrínsecamente más costosos. Estratificando por clase, la normalización <strong>cierra el canal lateral en la clase donde hay potencia para contrastarlo</strong> y <strong>no lo cierra</strong> en <code>proc_scan</code>, donde <code>lsblk</code> (2.840 ms) y <code>vmstat 1 1</code> (1.237 ms) desbordan su objetivo. Es un resultado accionable —se ataca bajando <code>MAX_TOKENS</code> para esa clase—, pero el global no debe citarse sin esta salvedad.</p>
+  </div>
+
+  <h3 style="margin-top:2.4rem">Credibilidad: el juez ciego</h3>
+  <p class="col note">Un atacante LLM adaptativo interroga dos brazos —el señuelo y un Debian real como control— y dos jueces independientes clasifican las transcripciones a ciegas, sin etiqueta de brazo ni de puerto. Con la muestra equilibrada al 50 %, el resultado buscado es <strong>que ningún juez supere el azar</strong>.</p>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Juez</th><th class="num">n</th><th class="num">Acierto</th><th class="num">p binomial</th><th class="num">Recall real</th><th class="num">Recall decoy</th></tr></thead>
+      <tbody>
+        <tr><td><code>qwen2.5:7b</code> <span class="note">principal</span></td><td class="num">15</td><td class="num">46,7 %</td><td class="num">1,000</td><td class="num">12,5 %</td><td class="num">75,0 %</td></tr>
+        <tr><td><code>qwen2.5-coder:0.5b</code> <span class="note">contraste</span></td><td class="num">16</td><td class="num">56,2 %</td><td class="num">0,804</td><td class="num">100 %</td><td class="num">12,5 %</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="call warn">
+    <h4>Por qué esto no demuestra lo que parece demostrar</h4>
+    <p>Ninguno de los dos jueces supera el azar, que es formalmente el resultado buscado. Pero los <em>recall</em> revelan que ninguno está midiendo credibilidad: el de 7B contesta «decoy» a 13 de 15 transcripciones, incluidas 7 de las 8 del Debian real; el de 0,5B contesta «real» a 15 de 16. Son <strong>jueces degenerados</strong>: responden casi siempre lo mismo, y en muestra equilibrada eso produce mecánicamente un 50 % tanto si el engaño es perfecto como si es pésimo. El acuerdo entre ambos lo confirma: Cohen κ = 0,02.</p>
+    <p>La conclusión que sostiene la evidencia es más débil que la que el veredicto sugiere: <strong>el señuelo no fue refutado por este instrumento.</strong> Un juez que no discrimina no puede acreditar credibilidad; solo puede dejar de negarla. El límite no está en la muestra sino en el evaluador, así que ampliar el número de sesiones no lo arregla.</p>
+  </div>
+
+  <h3 style="margin-top:2.4rem">Comparativa con Cowrie y con un host real</h3>
+  <p class="col note">Los tres brazos se interrogan con el mismo cliente SSH, las mismas credenciales y la misma batería de 30 comandos, de modo que las diferencias sean atribuibles al sistema y no al procedimiento.</p>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Sistema</th><th class="num">Cobertura</th><th class="num">Divergencia vs. real</th><th class="num">Coherencia</th><th class="num">Mediana</th><th class="num">RAM</th></tr></thead>
+      <tbody>
+        <tr><td>Marco generativo</td><td class="num">96,7 %</td><td class="num">8/30</td><td class="num">96,7 %</td><td class="num">598,0 ms</td><td class="num">~4,4 GiB</td></tr>
+        <tr><td>Cowrie</td><td class="num">63,3 %</td><td class="num">6/30</td><td class="num">93,3 %</td><td class="num">10,5 ms</td><td class="num">54 MiB</td></tr>
+        <tr><td>Host Debian real <span class="note">control</span></td><td class="num">70,0 %</td><td class="num">referencia</td><td class="num">93,3 %</td><td class="num">4,5 ms</td><td class="num">5,4 MiB</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="col">
+    <p><strong>La cobertura no se lee sola.</strong> El host real solo responde al 70 % de la batería porque nueve de esas rutas no existen en un Debian recién instalado. Una cobertura próxima al 100 % no es una victoria: es una anomalía que ningún sistema real presenta. Por divergencia, de hecho, la comparación se invierte —el señuelo discrepa del host real en 8 comandos y Cowrie en 6—. Y su coherencia <em>perfecta</em> también delata: es más estable que el host real, donde <code>ps aux</code> e <code>history</code> cambian legítimamente entre invocaciones.</p>
+  </div>
+  <div class="call warn">
+    <h4>La limitación más seria del trabajo</h4>
+    <p>La normalización hace indistinguibles las dos rutas <em>internas</em>, pero el señuelo sigue dos órdenes de magnitud por encima de un <code>sshd</code> real. El canal lateral interno está cerrado; el <strong>externo, no</strong>. Un adversario que tenga un servidor legítimo de la misma organización como término de comparación puede separarlo por tiempo.</p>
+  </div>
+
+  <h3 style="margin-top:2.4rem">Telemetría y SIEM</h3>
+  <p class="col">Cada interacción produce un evento JSON Lines listo para ingesta. Wazuh 4.9.2 corre bajo el perfil <code>siem</code> del compose y las <strong>10 reglas de correlación se validaron contra el manager real</strong>, pasando eventos por <code>wazuh-logtest</code>: todas disparan el identificador y el nivel que declara el diseño. Queda fuera, y se declara, el transporte desde un agente remoto y la visualización en el panel.</p>
+
+  <div class="term">
+    <div class="bar"><span class="dot"></span> deception-events.jsonl</div>
+<pre><span class="o">{</span><span class="hl">"event_type"</span><span class="o">: </span><span class="c">"command.executed"</span><span class="o">, </span><span class="hl">"severity"</span><span class="o">: </span><span class="c">"critical"</span><span class="o">, </span><span class="hl">"wazuh_level"</span><span class="o">: 14,</span>
+<span class="o"> </span><span class="hl">"confidence"</span><span class="o">: </span><span class="c">"confirmed"</span><span class="o">, </span><span class="hl">"src_ip"</span><span class="o">: </span><span class="c">"10.42.99.14"</span><span class="o">,</span>
+<span class="o"> </span><span class="hl">"command"</span><span class="o">: </span><span class="c">"cat /root/.ssh/id_rsa"</span><span class="o">, </span><span class="hl">"response_route"</span><span class="o">: </span><span class="c">"deterministic"</span><span class="o">,</span>
+<span class="o"> </span><span class="hl">"honeytokens"</span><span class="o">: [</span><span class="c">"HT-4C81A9E2"</span><span class="o">],</span>
+<span class="o"> </span><span class="hl">"mitre"</span><span class="o">: [{</span><span class="hl">"technique_id"</span><span class="o">: </span><span class="c">"T1552.004"</span><span class="o">, </span><span class="hl">"tactic"</span><span class="o">: </span><span class="c">"Credential Access"</span><span class="o">}]}</span></pre>
+  </div>
+</section>
+
+<section id="demo">
+  <div class="sec-mark"><span class="n">05</span><h4>La demostración en vivo</h4></div>
+  <h2>Levantarlo a mano, paso a paso</h2>
+  <p class="section-sub">Unos doce minutos. Cada paso dice qué escribir, qué debe salir y qué se está demostrando, para poder narrarlo mientras corre.</p>
+
+  <div class="call">
+    <h4>El día antes, no delante del tribunal</h4>
+    <p>La primera vez, el arranque baja unos 400 MB de modelo. Hazlo con antelación y deja la pila levantada o, al menos, el volumen <code>ollama_data</code> ya poblado.</p>
+  </div>
+
+  <div class="term">
+    <div class="bar"><span class="dot"></span> preparación</div>
+<pre><span class="p">$</span> <span class="c">docker compose up -d --build</span>
+<span class="p">$</span> <span class="c">docker compose ps</span>                          <span class="o"># los 3 servicios healthy/running</span>
+<span class="p">$</span> <span class="c">curl -s http://127.0.0.1:8000/health</span>     <span class="o"># {"status":"ok","ready":true}</span>
+<span class="p">$</span> <span class="c">ssh-keygen -R "[localhost]:2222"</span>         <span class="o"># evita el aviso de clave cambiada</span></pre>
+  </div>
+  <p class="col note">Si <code>/health</code> no responde <code>ready:true</code>, el modelo no terminó de bajar: <code>docker compose logs model-puller</code>. Y ejecuta un comando cualquiera en el señuelo antes de empezar, para que el modelo esté caliente y el primer comando de la demo no pague la carga.</p>
+
+  <div class="steps" style="margin-top:2.2rem">
+
+    <div class="step"><span class="n">01</span><div class="body">
+      <h3>Enseñar la identidad que ha asumido el host</h3>
+      <div class="term"><div class="bar"><span class="dot"></span> host</div><pre><span class="p">$</span> <span class="c">curl -s http://127.0.0.1:8000/persona | python -m json.tool</span></pre></div>
+      <p class="expect"><b>Debe salir:</b> una empresa ficticia, un hostname, la lista de usuarios y la aplicación desplegada.</p>
+      <p class="say">Esto se generó una sola vez, en el arranque, y está congelado en disco. A partir de aquí, todo lo que vea el atacante se deriva de este JSON: es lo que hace que el host siga siendo el mismo host durante toda la sesión.</p>
+    </div></div>
+
+    <div class="step"><span class="n">02</span><div class="body">
+      <h3>Entrar como el atacante</h3>
+      <div class="term"><div class="bar"><span class="dot"></span> atacante</div><pre><span class="p">$</span> <span class="c">ssh root@localhost -p 2222</span>
+<span class="o">root@localhost's password:</span> <span class="c">lo que sea</span>
+<span class="o">Welcome to Ubuntu 22.04.3 LTS (GNU/Linux 5.15.0-88-generic x86_64)</span>
+<span class="p">root@srv-app-01:~#</span></pre></div>
+      <p class="expect"><b>Debe salir:</b> banner MOTD y prompt. <b>Cualquier contraseña vale.</b></p>
+      <p class="say">Acepta todo por diseño: no queremos frenar al atacante, queremos observarlo. La credencial que acabo de escribir ya está registrada en claro en la telemetría.</p>
+    </div></div>
+
+    <div class="step"><span class="n">03</span><div class="body">
+      <h3>La ruta determinista</h3>
+      <div class="term"><div class="bar"><span class="dot"></span> sesión SSH</div><pre><span class="p">#</span> <span class="c">whoami</span>
+<span class="o">root</span>
+<span class="p">#</span> <span class="c">hostname</span>
+<span class="o">srv-app-01</span>
+<span class="p">#</span> <span class="c">cat /etc/os-release</span>
+<span class="o">NAME="Ubuntu"   VERSION="22.04.3 LTS (Jammy Jellyfish)"   ...</span></pre></div>
+      <p class="expect"><b>Se demuestra:</b> resolución determinista desde la persona. No hay modelo en juego.</p>
+    </div></div>
+
+    <div class="step"><span class="n">04</span><div class="body">
+      <h3>La coherencia, que es lo que un honeypot estático no tiene</h3>
+      <div class="term"><div class="bar"><span class="dot"></span> sesión SSH</div><pre><span class="p">#</span> <span class="c">cat /etc/passwd</span>            <span class="o"># apunta un usuario cualquiera</span>
+<span class="o">...  jlopez:x:1001:1001:Javier Lopez:/home/jlopez:/bin/bash</span>
+<span class="p">#</span> <span class="c">ls -la /home</span>               <span class="o"># tiene que estar el mismo usuario</span>
+<span class="o">drwxr-xr-x  2 jlopez jlopez  4096 ... jlopez</span></pre></div>
+      <p class="expect"><b>Se demuestra:</b> el sistema de ficheros virtual y <code>/etc/passwd</code> se derivan del mismo JSON, así que concuerdan por construcción.</p>
+      <p class="say">Este es el punto del trabajo. Si le pidiera <code>/etc/passwd</code> al modelo en cada <code>cat</code>, me devolvería usuarios distintos cada vez, y esa incoherencia es exactamente lo que un atacante busca.</p>
+    </div></div>
+
+    <div class="step"><span class="n">05</span><div class="body">
+      <h3>El mismo comando, dos veces</h3>
+      <div class="term"><div class="bar"><span class="dot"></span> sesión SSH</div><pre><span class="p">#</span> <span class="c">cat /etc/passwd</span>            <span class="o"># byte a byte idéntico a la primera vez</span></pre></div>
+      <p class="expect"><b>Se demuestra:</b> no hay un modelo reinventando el fichero en cada invocación.</p>
+    </div></div>
+
+    <div class="step"><span class="n">06</span><div class="body">
+      <h3>Estado de sesión: lo que el atacante crea, permanece</h3>
+      <div class="term"><div class="bar"><span class="dot"></span> sesión SSH</div><pre><span class="p">#</span> <span class="c">cd /tmp &amp;&amp; touch payload.sh &amp;&amp; ls -la</span>
+<span class="o">-rw-r--r--  1 root root     0 ... payload.sh</span></pre></div>
+      <p class="expect"><b>Se demuestra:</b> la capa de superposición del sistema de ficheros, con <code>cwd</code> y entorno propios de cada sesión.</p>
+    </div></div>
+
+    <div class="step"><span class="n">07</span><div class="body">
+      <h3>El honeytoken: la señal de mayor valor del sistema</h3>
+      <div class="term"><div class="bar"><span class="dot"></span> sesión SSH</div><pre><span class="p">#</span> <span class="c">cat /root/.ssh/id_rsa</span>
+<span class="o">-----BEGIN OPENSSH PRIVATE KEY-----</span>
+<span class="o">b3BlbnNzaC1rZXktdjEAAAAABG5vbmU...</span>   <span class="hl">HT-4C81A9E2</span></pre></div>
+      <p class="expect"><b>Se demuestra:</b> credencial fabricada con identificador rastreable. En el panel del defensor, esto dispara <b>nivel 15</b>.</p>
+      <p class="say">Esta clave no autentica contra nada. Su valor está fuera: si mañana alguien la usa en cualquier punto de la organización, sé con certeza que salió de aquí. Es un verdadero positivo por construcción, no una heurística.</p>
+    </div></div>
+
+    <div class="step"><span class="n">08</span><div class="body">
+      <h3>La ruta generativa</h3>
+      <div class="term"><div class="bar"><span class="dot"></span> sesión SSH</div><pre><span class="p">#</span> <span class="c">systemctl status nginx</span>
+<span class="o">● nginx.service - A high performance web server and a reverse proxy server</span>
+<span class="o">     Loaded: loaded (/lib/systemd/system/nginx.service; enabled)</span>
+<span class="o">     Active: active (running) since ...</span></pre></div>
+      <p class="expect"><b>Se demuestra:</b> esta salida no está en ninguna plantilla. La acaba de escribir el modelo local, con la persona como contexto para no salirse del mundo que la capa determinista ya estableció.</p>
+      <p class="say">Y fíjense en que ha tardado más o menos lo mismo que <code>whoami</code>. Eso no es casualidad: es la normalización de latencia, y es el problema al que dediqué la mitad del trabajo.</p>
+    </div></div>
+
+    <div class="step"><span class="n">09</span><div class="body">
+      <h3>El host está vivo: los logs siguen creciendo</h3>
+      <div class="term"><div class="bar"><span class="dot"></span> sesión SSH</div><pre><span class="p">#</span> <span class="c">tail -5 /var/log/nginx/access.log</span>
+<span class="o">... espera diez segundos y repítelo ...</span>
+<span class="p">#</span> <span class="c">tail -5 /var/log/nginx/access.log</span>     <span class="o"># hay líneas nuevas</span></pre></div>
+      <p class="expect"><b>Se demuestra:</b> el hilo de simulación de tráfico. Un log congelado en el instante del despliegue es una de las señales de honeypot más fiables que existen.</p>
+    </div></div>
+
+    <div class="step"><span class="n">10</span><div class="body">
+      <h3>Salir</h3>
+      <div class="term"><div class="bar"><span class="dot"></span> sesión SSH</div><pre><span class="p">#</span> <span class="c">exit</span></pre></div>
+      <p class="expect"><b>Se demuestra:</b> al cerrar, el agente de alertas emite el resumen de sesión: comandos, duración y técnicas ATT&amp;CK observadas.</p>
+    </div></div>
+
+  </div>
+</section>
+
+<section id="defensor">
+  <div class="sec-mark"><span class="n">06</span><h4>La otra mitad</h4></div>
+  <h2>El lado del defensor</h2>
+  <p class="section-sub">Es la mitad que se suele olvidar enseñar, y es la que justifica el trabajo. Ten esto corriendo en una segunda terminal <em>mientras</em> ocurre todo lo anterior.</p>
+
+  <div class="term">
+    <div class="bar"><span class="dot"></span> segunda terminal · SOC</div>
+<pre><span class="p">$</span> <span class="c">docker compose exec deception-agent \
+    tail -f /app/data/logs/deception-events.jsonl</span>
+
+<span class="o">high      session.opened</span>
+<span class="o">high      auth.attempt       root / lo-que-sea</span>
+<span class="o">low       command.executed   whoami</span>
+<span class="o">high      command.executed   cat /etc/passwd</span>
+<span class="hl">critical  command.executed   cat /root/.ssh/id_rsa    HT-4C81A9E2   ← nivel 15</span>
+<span class="o">low       command.executed   systemctl status nginx</span>
+<span class="o">high      session.closed     6 comandos · 4 técnicas ATT&amp;CK</span></pre>
+  </div>
+  <p class="col note">Cada línea lleva su técnica MITRE ATT&amp;CK, su severidad y su <code>wazuh_level</code>. El paso 7 de la demo es el que dispara la crítica. Para verlo en columnas en vez de JSON crudo, canaliza la salida por un <code>python -c</code>: el comando exacto está en el README, sección 15.</p>
+</section>
+
+<section id="fallos">
+  <div class="sec-mark"><span class="n">07</span><h4>Contingencias</h4></div>
+  <h2>Si algo falla delante de la gente</h2>
+  <p class="section-sub">Todo lo de esta tabla se arregla en menos de un minuto. Y en dos de los cuatro casos, lo que ha pasado forma parte del diseño, así que se puede narrar como tal sin faltar a la verdad.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Síntoma</th><th>Qué decir mientras lo arreglas</th><th>Arreglo</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>El primer comando tarda muchísimo</td>
+          <td>El modelo se había descargado de RAM; <code>OLLAMA_KEEP_ALIVE=30m</code> lo evita en régimen normal.</td>
+          <td>Ejecuta un comando cualquiera antes de empezar, para calentar.</td>
+        </tr>
+        <tr>
+          <td>La persona sale genérica (<code>srv-web-prod-02</code>)</td>
+          <td>Es el perfil de reserva: el señuelo <em>nunca</em> degrada a un estado obviamente falso porque la inferencia falle. Prefiere un host aburrido a un host roto.</td>
+          <td><code>docker compose exec deception-agent rm /app/data/persona.json</code> y reinicia el agente.</td>
+        </tr>
+        <tr>
+          <td>Aviso de clave de host cambiada</td>
+          <td>La clave se persiste en un volumen precisamente para que esto no pase; solo ocurre si se borró.</td>
+          <td><code>ssh-keygen -R "[localhost]:2222"</code></td>
+        </tr>
+        <tr>
+          <td><code>/health</code> no llega a <code>ready</code></td>
+          <td>Sigue bajando el modelo.</td>
+          <td><code>docker compose logs -f model-puller</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="term">
+    <div class="bar"><span class="dot"></span> al terminar</div>
+<pre><span class="p">$</span> <span class="c">docker compose down</span>      <span class="o"># conserva modelo y volúmenes</span>
+<span class="p">$</span> <span class="c">docker compose down -v</span>   <span class="o"># borra todo, modelo incluido</span></pre>
+  </div>
+</section>
+
+<footer>
+  <p><strong>Generative Deception Framework</strong> · Trabajo Fin de Máster, Máster en Ciberseguridad, Universidad Complutense de Madrid.<br>
+  María Celeste Montoya Bonilla · Tutores: Prof. Javier Domínguez Gómez y Prof. Román Ramírez Giménez.</p>
+  <p>Todas las cifras de esta página proceden de informes generados por los bancos de pruebas del repositorio: <code>benchmarks/results/RESULTS.md</code>, <code>COMPARISON.md</code>, <code>RESOURCES.md</code>, <code>SIEM_VALIDATION.md</code> y <code>evaluation/results/DECEPTION_EVAL.md</code>. Ninguna se transcribió a mano.</p>
+  <p><em>Aviso:</em> software destinado exclusivamente a investigación en defensa activa y a despliegues autorizados en redes propias. Acepta cualquier credencial por diseño y registra en claro todo lo que el atacante escribe. No lo despliegues en un segmento de producción sin aislamiento de red.</p>
+</footer>
+
+</div>
+
+</body>
+</html>

@@ -279,8 +279,19 @@ def summarise(samples: list[dict[str, Any]], target_ms: float) -> dict[str, Any]
     deterministic = [s for s in samples if s["route"] == "deterministic"]
     generative = [s for s in samples if s["route"] == "generative"]
 
+    # Every suite, not just two of them: the paired suite is the one that
+    # produces the reference run, and leaving it out silently dropped two
+    # thirds of the measured commands from the per-command table.
+    catalogue: list[tuple[str, str, list[str]]] = []
+    seen_commands: set[str] = set()
+    for sequence in SUITES.values():
+        for entry in sequence:
+            if entry[0] not in seen_commands:
+                seen_commands.add(entry[0])
+                catalogue.append(entry)
+
     by_command: dict[str, dict[str, Any]] = {}
-    for command, technique, _ in RECON_SEQUENCE + GENERATIVE_SEQUENCE:
+    for command, technique, _ in catalogue:
         subset = [s for s in samples if s["command"] == command]
         if subset:
             by_command[command] = {"technique": technique,
@@ -374,6 +385,16 @@ def write_markdown(summary: dict[str, Any], samples: list[dict[str, Any]], path:
         f"Objetivo de latencia: **{summary['target_ms']:.0f} ms**. "
         f"Muestras totales: **{o['n']}**.",
         "",
+    ]
+    # A re-render reuses the measured samples and only recomputes the
+    # aggregation, so it must say so instead of passing for a fresh run.
+    if summary.get("rerender_note"):
+        lines += [
+            f"> **Reagregado el {summary.get('rerendered_at', '-')} sin volver a medir.** "
+            f"{summary['rerender_note']}",
+            "",
+        ]
+    lines += [
         "## 1. Resumen global",
         "",
         "| Ruta | n | Media | Mediana | Desv. tip. | Min | Max | p95 | p99 | Dentro de objetivo | Fidelidad |",

@@ -7,8 +7,8 @@
 | Recurso | Mínimo | Recomendado | Nota |
 |---|---|---|---|
 | CPU | 4 núcleos x86_64 / ARM64 | 8 núcleos | La latencia de la ruta generativa depende directamente de la CPU. |
-| RAM | 8 GB | 16 GB | El modelo cuantizado ocupa ~2,5 GB residentes con `keep_alive`. |
-| Disco | 10 GB | 20 GB SSD | Imagen de Ollama + modelo + volúmenes. |
+| RAM | 8 GB | 16 GB | Medido: el contenedor de Ollama sostiene **4.474,9 MiB** residentes con `keep_alive`, y la pila completa **4.545,8 MiB** (ver `benchmarks/results/RESOURCES.md`). |
+| Disco | 10 GB | 20 GB SSD | Imagen de Ollama + modelo (~400 MB el `0.5b`, ~2 GB el `3b`) + volúmenes. |
 | GPU | — | Opcional | No requerida. Con GPU la latencia generativa baja de forma sustancial; **documéntalo si la usas**, porque invalida la comparación con una ejecución en CPU. |
 
 ### Software
@@ -46,7 +46,9 @@ Un único comando levanta todo. El orden de arranque está resuelto por `depends
 ollama-llm  --(healthy)-->  model-puller  --(completed)-->  deception-agent  --(healthy)-->  ssh-decoy
 ```
 
-`model-puller` descarga `qwen2.5-coder:3b` automáticamente y termina. **La primera ejecución tarda varios minutos** mientras se descargan ~2 GB de modelo; las siguientes son inmediatas porque el volumen `ollama_data` persiste.
+`model-puller` descarga `qwen2.5-coder:0.5b` automáticamente y termina. **La primera ejecución tarda unos minutos** mientras se descargan ~400 MB de modelo; las siguientes son inmediatas porque el volumen `ollama_data` persiste.
+
+> **Sobre el modelo por defecto.** El `0.5b` no es una elección de comodidad: es lo que permite que la ruta generativa quepa en la misma banda temporal que la determinista y, con ello, que la normalización de latencia se sostenga. El `3b` produce salidas notablemente mejores pero genera a ~45 ms/token en CPU, lo que deja la ruta generativa en ~2 s e impide la indistinguibilidad. El razonamiento completo y las cifras están en el README §4.
 
 ### Paso 3 — Verificar
 
@@ -106,15 +108,27 @@ Tipos de evento emitidos: `session.opened`, `auth.attempt`, `command.executed`, 
 ## 4. Evaluación
 
 ```bash
-# Suite offline de coherencia: no necesita Docker ni Ollama
-python tests/test_core.py
+# Suites offline: no necesitan Docker ni Ollama
+python tests/test_core.py           # 81/81  nucleo del orquestador
+python tests/test_evaluation.py     # 56/56  arnes de evaluacion ciega
+pytest tests/test_comparison.py -q  # 19     scoring de la comparativa (requiere pytest)
 
 # Banco de latencia y fidelidad (la pila debe estar levantada)
 pip install requests
-python benchmarks/latency_benchmark.py --scenario both --repeat 5
+python benchmarks/latency_benchmark.py --suite paired --scenario recon --repeat 5
 ```
 
 Resultados en `benchmarks/results/`: `latency_samples.csv` (muestras crudas), `latency_summary.json` (agregados) y `RESULTS.md` (tablas listas para el capítulo 4).
+
+Usa `--suite paired` y no `--suite both` para cualquier cifra de indistinguibilidad: es la única batería cuyos comandos alcanzan las dos rutas dentro de una misma clase de coste, que es lo que el contraste estratificado necesita.
+
+Los otros tres instrumentos, cada uno con su perfil de compose:
+
+```bash
+docker compose --profile siem    up -d              && python siem/validate_rules.py
+docker compose --profile eval    up -d real-host    && python evaluation/run_deception_eval.py --sessions 8
+docker compose --profile compare up -d cowrie       && python benchmarks/cowrie_comparison.py --repeat 2
+```
 
 ---
 
@@ -148,7 +162,7 @@ docker compose logs deception-agent  # ¿qué está esperando?
 ```
 Si el modelo no llegó a descargarse, fuerza la descarga a mano:
 ```bash
-docker compose exec ollama-llm ollama pull qwen2.5-coder:3b
+docker compose exec ollama-llm ollama pull qwen2.5-coder:0.5b
 docker compose restart deception-agent
 ```
 
@@ -163,7 +177,7 @@ Solución: asegúrate de que el modelo está descargado, borra `persona.json` y 
 Por orden de impacto:
 1. **El modelo se descargó de RAM.** `OLLAMA_KEEP_ALIVE=30m` lo evita; verifica que la variable llegó al contenedor.
 2. **Contexto demasiado largo.** Baja `SESSION_CONTEXT_TURNS` de 6 a 3 en `.env`.
-3. **Salida demasiado larga.** Baja `MAX_TOKENS` de 220 a 150.
+3. **Salida demasiado larga.** Baja `MAX_TOKENS` de 64 a 48. Es la palanca más directa: la clase `proc_scan` es la que desborda su objetivo en la ejecución de referencia, y lo hace por longitud de salida.
 4. **CPU insuficiente.** Es el límite duro. Documenta el hardware en la memoria en lugar de ocultar el resultado.
 
 ### El cliente SSH avisa de cambio de clave de host

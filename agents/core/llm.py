@@ -61,7 +61,7 @@ class OllamaClient:
             if r.status_code != 200:
                 return False
             names = [m.get("name", "") for m in r.json().get("models", [])]
-            # Ollama reports "qwen2.5-coder:3b"; tolerate a missing :latest tag.
+            # Ollama reports e.g. "qwen2.5-coder:0.5b"; tolerate a missing :latest tag.
             return any(n == self.model or n.split(":")[0] == self.model.split(":")[0] for n in names)
         except (requests.RequestException, ValueError):
             return False

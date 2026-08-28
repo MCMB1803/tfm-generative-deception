@@ -174,9 +174,21 @@ def _read_kappa(k: float) -> str:
         band = "sustancial"
     else:
         band = "casi total"
-    return (f"Acuerdo {band} (kappa={k:.2f}). Un acuerdo alto sobre las mismas "
-            "transcripciones indica que ambos jueces reaccionan a las mismas "
-            "senales, no a un capricho de un modelo.")
+    # The reading has to follow the number. Printing "a high agreement means
+    # both judges react to the same signals" under kappa=0.02 says the
+    # opposite of what was measured.
+    if k < 0.20:
+        reading = ("Los dos jueces no coinciden mas de lo que coincidirian por azar: "
+                   "no reaccionan a las mismas senales, de modo que su acuerdo no "
+                   "refuerza ninguna conclusion y cada veredicto debe leerse solo.")
+    elif k < 0.60:
+        reading = ("Los dos jueces coinciden por encima del azar pero de forma "
+                   "inestable: hay senal compartida, no un criterio comun.")
+    else:
+        reading = ("Los dos jueces coinciden sobre las mismas transcripciones, lo que "
+                   "indica que reaccionan a las mismas senales y no al capricho de un "
+                   "modelo concreto.")
+    return f"Acuerdo {band} (kappa={k:.2f}). {reading}"
 
 
 # -- attacker (secondary signal) ----------------------------------------------

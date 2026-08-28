@@ -2,7 +2,7 @@
 
 ## 1. Visión General de la Solución
 
-El **Generative Deception Framework** implementa un entorno de ciberengaño dinámico e interactivo para la detección temprana de intrusiones. A diferencia de un *honeypot* estático, el sistema no sirve respuestas pregrabadas: mantiene una identidad de host coherente, la puebla con artefactos sintéticos y resuelve la interacción con el atacante mediante una arquitectura multi-agente apoyada en un modelo de lenguaje local y cuantizado (`qwen2.5-coder:3b`) ejecutado sobre **Ollama**.
+El **Generative Deception Framework** implementa un entorno de ciberengaño dinámico e interactivo para la detección temprana de intrusiones. A diferencia de un *honeypot* estático, el sistema no sirve respuestas pregrabadas: mantiene una identidad de host coherente, la puebla con artefactos sintéticos y resuelve la interacción con el atacante mediante una arquitectura multi-agente apoyada en un modelo de lenguaje local y cuantizado (`qwen2.5-coder:0.5b`) ejecutado sobre **Ollama**.
 
 La decisión de diseño central del proyecto es la **resolución híbrida de comandos**, descrita en la sección 4. No es un detalle de implementación: es lo que permite cumplir simultáneamente los dos requisitos que el capítulo 1 de la memoria plantea como críticos y que están en tensión directa —coherencia frente a *fingerprinting*, y latencia por debajo de 1.000 ms.
 
@@ -30,7 +30,7 @@ Todos los componentes se ejecutan en contenedores sobre la red *bridge* dedicada
 │  ┌──────────────────────┐        ┌──────────────────────────┐               │
 │  │  deception-agent     │  HTTP  │  ollama-llm              │               │
 │  │  Orquestador         ├───────►│  Motor de inferencia     │               │
-│  │  4 agentes           │ :11434 │  qwen2.5-coder:3b (Q4)   │               │
+│  │  4 agentes           │ :11434 │  qwen2.5-coder:0.5b (Q4) │               │
 │  │  :8000 [INTERNO]     │        │  :11434  [INTERNO]       │               │
 │  └──────────┬───────────┘        └──────────────────────────┘               │
 │             │                                                               │
@@ -90,7 +90,9 @@ Convierte cada interacción en un evento JSON Lines listo para SIEM. Toda intera
 
 Es el núcleo técnico del trabajo. Cada comando toma una de dos rutas:
 
-**Ruta determinista.** Los comandos de reconocimiento cuya salida debe ser estable y coherente (`whoami`, `id`, `uname`, `cat /etc/passwd`, `ls`, `ps`, `ip a`, `netstat`, `df`, `history`…) se resuelven desde la persona y el sistema de ficheros de artefactos. Coste: microsegundos. Fidelidad: exacta. Coherencia entre invocaciones: garantizada.
+**Ruta determinista.** Los comandos de reconocimiento cuya salida debe ser estable y coherente (`whoami`, `id`, `uname`, `cat /etc/passwd`, `ls`, `ps`, `ip a`, `netstat`, `df`, `history`…) se resuelven desde la persona y el sistema de ficheros de artefactos. Coste de cómputo: microsegundos. Fidelidad: exacta. Coherencia entre invocaciones: garantizada.
+
+> **Ojo con «microsegundos».** Ese es el coste de *cómputo*, no el tiempo que ve el atacante. La capa de normalización (sección 4.4) retiene deliberadamente la respuesta hasta el objetivo que le corresponde a ese comando, de modo que la latencia medida en la ruta determinista es de **cientos de milisegundos**. Es intencionado: una respuesta instantánea es tan delatora como una lenta.
 
 **Ruta generativa.** Todo lo demás se envía al LLM local, inyectando el bloque de contexto de la persona y los últimos turnos de la sesión, de forma que la invención del modelo se mantenga dentro del mundo que la capa determinista ya estableció.
 
@@ -106,7 +108,23 @@ Una tubería se resuelve por su primer segmento y los filtros posteriores (`grep
 
 Cada sesión mantiene su `cwd`, sus variables de entorno y una **capa de superposición** del sistema de ficheros con lo que el atacante ha creado o borrado. Un `touch /tmp/payload.sh` seguido de `ls /tmp` es coherente. Esto materializa la limitación declarada en la sección 1.4.2 de la memoria: el estado vive en el ámbito de la sesión activa.
 
-### 4.3. Higiene de salida
+### 4.3. Normalización de latencia
+
+La resolución híbrida crea, sin quererlo, el problema más serio del diseño. Medido sobre el hardware de referencia, las dos rutas costaban **2,4 ms ± 1,6** y **2.044,4 ms ± 7,3**: dos poblaciones limpias, estrechas y separadas por dos segundos. Ningún host real se comporta así. Un atacante que se limite a cronometrar las respuestas las reparte en dos cubos y deduce algo que ningún honeypot debería revelar —que detrás de algunas hay un modelo de lenguaje, y por tanto que el host es un señuelo—. Bajar el coste de inferencia no lo arregla: la señal no es la magnitud, es la **bimodalidad**.
+
+`agents/core/latency.py` impone la propiedad que faltaba: la latencia debe ser función del **comando**, que el atacante ve, y nunca de la **ruta**, que es un detalle interno.
+
+```text
+L  =  rtt(sesion)  +  coste_ejecucion(clase_del_comando)  +  jitter
+```
+
+Antes de resolver nada se sortea el objetivo de ese comando a partir de su clase de coste (`builtin`, `read_small`, `list_dir`, `proc_scan`, `net_probe`, `heavy`), con una mediana y una dispersión log-normal tomadas de lo que ese tipo de comando cuesta en un servidor real. El RTT es constante dentro de la sesión, porque un atacante conecta por una sola ruta de red. Resuelva quien resuelva, la respuesta se retiene hasta que el objetivo se agota.
+
+**Limitación honesta, y es la que gobierna el resultado.** El relleno solo puede *añadir* tiempo. Cuando la ruta generativa desborda su objetivo, el retraso ya no se puede devolver y esa muestra sigue siendo separable. Esos desbordamientos se cuentan (`overruns`) y se reportan en lugar de esconderse: **el porcentaje de exceso es la medida real de si la normalización se sostiene**, y llevarlo a cero es un problema de ajuste —`MAX_TOKENS`, tamaño del modelo, objetivo por clase—. En la ejecución de referencia desbordó el 12,96 % de las muestras, todas en la clase `proc_scan`, que es exactamente la clase que sigue siendo separable.
+
+La métrica que acompaña a este módulo no es «media por debajo de 1.000 ms» sino «un atacante no puede separar las dos rutas por tiempo», que es contrastable: ver `benchmarks/stats.py` (Kolmogorov-Smirnov de dos muestras, AUC del mejor clasificador temporal y coeficiente de bimodalidad).
+
+### 4.4. Higiene de salida
 
 La salida del modelo se somete a un filtro antes de llegar al atacante: se eliminan bloques de código markdown y prompts reflejados, y **cualquier respuesta que rompa el personaje** (menciones a IA, modelo, simulación, honeypot, Ollama…) se descarta por completo y se sustituye por un error de bash creíble. La salida también se acota en líneas: un muro de texto es en sí mismo una señal.
 
@@ -160,6 +178,7 @@ agents/
 ├── core/
 │   ├── config.py           Configuración por variables de entorno
 │   ├── llm.py              Cliente Ollama instrumentado (mide cada llamada)
+│   ├── latency.py          Normalización: la latencia depende del comando, no de la ruta
 │   ├── mitre.py            Mapeo comando -> técnica ATT&CK -> severidad
 │   ├── session.py          Estado por sesión: cwd, entorno, overlay de ficheros
 │   └── telemetry.py        Emisión de eventos JSON Lines para SIEM
@@ -171,5 +190,8 @@ agents/
 
 decoys/ssh/ssh_server.py    Frontend de protocolo SSH (paramiko)
 benchmarks/                 Banco de pruebas de latencia y fidelidad
+benchmarks/stats.py         KS, AUC y bimodalidad, sin scipy ni numpy
+siem/                       Reglas de Wazuh y validador contra el manager
+evaluation/                 Atacante LLM, juez ciego y host real de control
 tests/test_core.py          Suite offline (sin Docker ni Ollama)
 ```

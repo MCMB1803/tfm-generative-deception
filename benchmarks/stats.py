@@ -182,18 +182,24 @@ def verdict(ks: KSResult, auc: AUCResult) -> tuple[str, str]:
     Deliberately conservative: anything short of clean indistinguishability is
     reported as a partial result, never rounded up to a pass.
     """
+    # Order matters. A significant result is a finding at any sample size:
+    # the test rejected the null despite having little power, which makes the
+    # evidence stronger, not weaker. Small n only forbids the *opposite*
+    # conclusion -- absence of evidence is not evidence of absence -- so the
+    # sample-size guard applies to indistinguishability, never to separability.
+    if ks.distinguishable:
+        return ("SEPARABLE",
+                "Las dos rutas siguen distribuciones distintas y son separables por "
+                "tiempo: la normalizacion no cumple su objetivo con esta configuracion.")
     if ks.n1 < 8 or auc.n1 < 8 or ks.n2 < 8 or auc.n2 < 8:
         return ("INSUFICIENTE",
-                "Menos de 8 muestras por ruta: el contraste no tiene potencia. "
-                "Repetir con --repeat mayor antes de interpretar nada.")
-    if not ks.distinguishable and auc.advantage < 0.20:
+                "Menos de 8 muestras por ruta: el contraste no tiene potencia para "
+                "sostener una conclusion de indistinguibilidad. Repetir con --repeat "
+                "mayor antes de interpretar nada.")
+    if auc.advantage < 0.20:
         return ("INDISTINGUIBLE",
                 "No se detecta diferencia entre las dos rutas (KS no significativo) "
                 "y un clasificador temporal apenas supera el azar.")
-    if not ks.distinguishable:
-        return ("PARCIAL",
-                "KS no detecta diferencia, pero el AUC muestra que un clasificador "
-                "temporal todavia obtiene ventaja. Normalizacion incompleta.")
-    return ("SEPARABLE",
-            "Las dos rutas siguen distribuciones distintas y son separables por "
-            "tiempo: la normalizacion no cumple su objetivo con esta configuracion.")
+    return ("PARCIAL",
+            "KS no detecta diferencia, pero el AUC muestra que un clasificador "
+            "temporal todavia obtiene ventaja. Normalizacion incompleta.")

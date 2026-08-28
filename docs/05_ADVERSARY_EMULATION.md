@@ -1,4 +1,4 @@
-# 06. Emulación de Adversarios y Evaluación Ciega de Credibilidad
+# 05. Emulación de Adversarios y Evaluación Ciega de Credibilidad
 
 > **Este documento define *cómo* se mide la credibilidad. No contiene resultados.**
 > Las cifras se generan automáticamente en `evaluation/results/DECEPTION_EVAL.md`

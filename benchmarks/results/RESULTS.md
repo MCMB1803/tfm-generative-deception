@@ -4,6 +4,8 @@ Generado automaticamente por `benchmarks/latency_benchmark.py` el 2026-08-22T23:
 
 Objetivo de latencia: **1000 ms**. Muestras totales: **54**.
 
+> **Reagregado el 2026-08-28 sin volver a medir.** Mismas muestras que la ejecucion original; se recalculan los agregados tras corregir dos defectos de informe.
+
 ## 1. Resumen global
 
 | Ruta | n | Media | Mediana | Desv. tip. | Min | Max | p95 | p99 | Dentro de objetivo | Fidelidad |
@@ -24,6 +26,18 @@ Reparto de rutas: **50.0 %** determinista, **50.0 %** generativa.
 | `ps aux` | T1057 | deterministic | 3 | 827.7 ms | 974.9 ms | 66.7 % | 100.0 % |
 | `df -h` | T1082 | deterministic | 3 | 824.0 ms | 971.4 ms | 100.0 % | 100.0 % |
 | `stat /etc/passwd` | T1083 | generative | 3 | 870.2 ms | 959.3 ms | 100.0 % | 100.0 % |
+| `tty` | T1033 | generative | 3 | 802.2 ms | 934.4 ms | 100.0 % | 100.0 % |
+| `umask` | T1082 | generative | 3 | 805.6 ms | 941.2 ms | 100.0 % | 100.0 % |
+| `alias` | T1082 | generative | 3 | 805.9 ms | 940.5 ms | 100.0 % | 100.0 % |
+| `wc -l /etc/passwd` | T1087.001 | generative | 3 | 808.1 ms | 940.7 ms | 100.0 % | 100.0 % |
+| `head -3 /etc/passwd` | T1087.001 | deterministic | 3 | 809.5 ms | 938.5 ms | 100.0 % | 100.0 % |
+| `uname -r` | T1082 | deterministic | 3 | 1111.6 ms | 1356.7 ms | 66.7 % | 100.0 % |
+| `file /etc/passwd` | T1083 | generative | 3 | 805.4 ms | 941.3 ms | 100.0 % | 100.0 % |
+| `printenv HOME` | T1082 | generative | 3 | 804.9 ms | 944.8 ms | 100.0 % | 100.0 % |
+| `free -m` | T1082 | deterministic | 3 | 866.0 ms | 984.5 ms | 66.7 % | 100.0 % |
+| `ss -tulpn` | T1049 | deterministic | 3 | 849.7 ms | 976.8 ms | 100.0 % | 100.0 % |
+| `lsblk` | T1082 | generative | 3 | 2840.2 ms | 2964.5 ms | 0.0 % | 100.0 % |
+| `vmstat 1 1` | T1082 | generative | 3 | 1236.5 ms | 1258.2 ms | 0.0 % | 100.0 % |
 
 ## 3. Indistinguibilidad temporal de las dos rutas
 
@@ -51,7 +65,7 @@ La cifra global esta **confundida**: la ruta que toma un comando la decide el pr
 |---|---|---|---|---|---|---|---|
 | `builtin` | 9 | 9 | 0.2222 | 0.957475 | 0.4938 | 1.2 % | INDISTINGUIBLE |
 | `heavy` | 3 | 0 | — | — | — | — | Sin comparacion: una sola ruta alcanza esta clase |
-| `proc_scan` | 12 | 6 | 1.0 | 0.000156 | 1.0 | 100.0 % | INSUFICIENTE |
+| `proc_scan` | 12 | 6 | 1.0 | 0.000156 | 1.0 | 100.0 % | SEPARABLE |
 | `read_small` | 3 | 12 | 0.4167 | 0.669176 | 0.4444 | 11.1 % | INSUFICIENTE |
 
 > El contraste KS puede demostrar que dos distribuciones **diferen**, pero nunca que sean identicas. Un p-valor alto es evidencia de indistinguibilidad al tamano de muestra empleado, no una prueba.

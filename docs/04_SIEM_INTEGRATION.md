@@ -1,4 +1,4 @@
-# 05. Integración con SIEM (Wazuh / ELK)
+# 04. Integración con SIEM (Wazuh / ELK)
 
 > **Estado: desplegado y validado contra un manager real.** Wazuh 4.9.2 forma
 > parte de `docker-compose.yml` bajo el perfil `siem`, y `siem/validate_rules.py`
