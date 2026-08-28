@@ -8,32 +8,42 @@ Señuelo SSH de ciberengaño dinámico guiado por una arquitectura multi-agente 
 
 ## Índice
 
-1. [Qué hace el sistema](#1-qué-hace-el-sistema)
-   - [La decisión de diseño central: resolución híbrida](#la-decisión-de-diseño-central-resolución-híbrida)
-2. [Arquitectura](#2-arquitectura)
-3. [Reproducción rápida](#3-reproducción-rápida)
-   - [Requisitos](#requisitos)
-   - [Levantar la pila](#levantar-la-pila)
-   - [Comprobar que está en pie](#comprobar-que-está-en-pie)
-   - [Pruebas offline](#pruebas-offline-no-necesitan-docker-ni-ollama)
-4. [Entorno de referencia](#4-entorno-de-referencia)
-   - [El tamaño del modelo es una decisión, no un ajuste](#el-tamaño-del-modelo-es-una-decisión-no-un-ajuste)
-5. [Fijar las versiones](#5-fijar-las-versiones)
-6. [Re-ejecutar el banco de pruebas](#6-re-ejecutar-el-banco-de-pruebas)
-   - [Opciones](#opciones)
-7. [Qué es reproducible y qué no](#7-qué-es-reproducible-y-qué-no)
-8. [Resultados de referencia](#8-resultados-de-referencia)
-9. [Telemetría para el SOC](#9-telemetría-para-el-soc)
-10. [Estructura del repositorio](#10-estructura-del-repositorio)
-11. [Estado del proyecto](#11-estado-del-proyecto)
-12. [Emulación de adversarios y credibilidad](#12-emulación-de-adversarios-y-credibilidad)
+- [Generative Deception Framework (TFM · UCM)](#generative-deception-framework-tfm--ucm)
+  - [Índice](#índice)
+  - [1. Qué hace el sistema](#1-qué-hace-el-sistema)
+    - [La decisión de diseño central: resolución híbrida](#la-decisión-de-diseño-central-resolución-híbrida)
+  - [2. Arquitectura](#2-arquitectura)
+  - [3. Reproducción rápida](#3-reproducción-rápida)
+    - [Requisitos](#requisitos)
+    - [Levantar la pila](#levantar-la-pila)
+    - [Comprobar que está en pie](#comprobar-que-está-en-pie)
+    - [Pruebas offline (no necesitan Docker ni Ollama)](#pruebas-offline-no-necesitan-docker-ni-ollama)
+  - [4. Entorno de referencia](#4-entorno-de-referencia)
+    - [El tamaño del modelo es una decisión, no un ajuste](#el-tamaño-del-modelo-es-una-decisión-no-un-ajuste)
+  - [5. Fijar las versiones](#5-fijar-las-versiones)
+  - [6. Re-ejecutar el banco de pruebas](#6-re-ejecutar-el-banco-de-pruebas)
+    - [Opciones](#opciones)
+  - [7. Qué es reproducible y qué no](#7-qué-es-reproducible-y-qué-no)
+  - [8. Resultados de referencia](#8-resultados-de-referencia)
+  - [9. Telemetría para el SOC](#9-telemetría-para-el-soc)
+  - [10. Estructura del repositorio](#10-estructura-del-repositorio)
+  - [11. Estado del proyecto](#11-estado-del-proyecto)
+  - [12. Emulación de adversarios y credibilidad](#12-emulación-de-adversarios-y-credibilidad)
     - [Resultados del juez ciego](#resultados-del-juez-ciego)
-13. [Comparativa con un honeypot tradicional](#13-comparativa-con-un-honeypot-tradicional)
-14. [Trazabilidad: qué respalda cada apartado de la memoria](#14-trazabilidad-qué-respalda-cada-apartado-de-la-memoria)
+    - [Suite offline](#suite-offline)
+  - [13. Comparativa con un honeypot tradicional](#13-comparativa-con-un-honeypot-tradicional)
+    - [Resultados de la comparativa](#resultados-de-la-comparativa)
+  - [14. Trazabilidad: qué respalda cada apartado de la memoria](#14-trazabilidad-qué-respalda-cada-apartado-de-la-memoria)
     - [Qué queda fuera, declarado](#qué-queda-fuera-declarado)
-15. [Demostración en vivo](#15-demostración-en-vivo)
-- [Créditos](#créditos)
-- [Aviso](#aviso)
+  - [15. Demostración en vivo](#15-demostración-en-vivo)
+    - [Antes de empezar (hazlo el día antes, no delante del tribunal)](#antes-de-empezar-hazlo-el-día-antes-no-delante-del-tribunal)
+    - [El guion](#el-guion)
+    - [El lado del defensor (la mitad que se olvida enseñar)](#el-lado-del-defensor-la-mitad-que-se-olvida-enseñar)
+    - [Si hay tiempo: las tres piezas de evaluación](#si-hay-tiempo-las-tres-piezas-de-evaluación)
+    - [Al terminar](#al-terminar)
+    - [Fallos que pueden ocurrir](#fallos-que-pueden-ocurrir)
+  - [Créditos](#créditos)
+  - [Aviso](#aviso)
 
 ---
 
@@ -539,7 +549,7 @@ docker compose down          # conserva modelo y volúmenes
 docker compose down -v       # borra todo, modelo incluido
 ```
 
-### Si algo falla delante de la gente
+### Fallos que pueden ocurrir
 
 | Síntoma | Qué decir mientras lo arreglas | Arreglo |
 |---|---|---|
