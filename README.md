@@ -128,12 +128,12 @@ Guía completa y troubleshooting en [`docs/02_DEPLOYMENT_AND_TROUBLESHOOTING_GUI
 ### Pruebas offline (no necesitan Docker ni Ollama)
 
 ```bash
-python tests/test_core.py          # 81/81  nucleo del orquestador
-python tests/test_evaluation.py    # 56/56  arnes de evaluacion ciega
+python tests/test_core.py          # 102/102  nucleo del orquestador
+python tests/test_evaluation.py    # 56/56    arnes de evaluacion ciega
 pip install pytest && pytest tests/test_comparison.py -q   # 19 passed
 ```
 
-Las dos primeras sustituyen el cliente LLM por un doble de prueba y **no requieren instalar nada**: código de salida 0 y el recuento impreso al final. `test_core.py` ejercita la capa determinista —coherencia de la persona entre llamadas, sistema de ficheros virtual, mapeo ATT&CK, higiene de la salida, binarios ausentes—; `test_evaluation.py`, el render ciego, la estadística y la barrera de seguridad del atacante; `test_comparison.py`, el *scoring* de la comparativa con Cowrie (es la única que usa `pytest`).
+Las dos primeras sustituyen el cliente LLM por un doble de prueba y **no requieren instalar nada**: código de salida 0 y el recuento impreso al final. `test_core.py` ejercita la capa determinista —coherencia de la persona entre llamadas, sistema de ficheros virtual, mapeo ATT&CK, higiene de la salida, binarios ausentes—, el presupuesto de generación y **el equilibrio real de la suite `paired`**: resuelve sus 18 comandos y comprueba que cada uno toma la ruta y la clase que declara, que es el defecto de método que estropeó la primera ejecución de referencia y que no necesitaba Docker para detectarse. `test_evaluation.py` cubre el render ciego, la estadística y la barrera de seguridad del atacante; `test_comparison.py`, el *scoring* de la comparativa con Cowrie (es la única que usa `pytest`).
 
 ---
 
@@ -260,7 +260,7 @@ Conviene ser explícito, porque el sistema tiene una parte determinista y otra e
 **Dos avisos sobre la ejecución de referencia versionada.** Ninguno invalida las cifras, pero ambos deben declararse antes de citarlas:
 
 1. **Se midió con un clasificador de coste que ya no es el que corre.** `agents/core/latency.py::classify` etiquetaba `uname -r` como clase `heavy` (traversal de sistema de ficheros) por confundir el flag `-r` con recursión. El arreglo y el CSV entraron en el mismo commit, de modo que la muestra versionada lleva ese comando en `heavy` mientras que el código actual lo pone en `read_small`. Esto desplaza tres muestras entre clases y es la razón de que `heavy` aparezca con una sola ruta. **Al volver a lanzar el banco, la estratificación de [§8](#8-resultados-de-referencia) cambiará**; la global no.
-2. **La suite `paired` no queda equilibrada por clase.** Está escrita para dar tres comandos por ruta en cada uno de los tres bloques, pero el reparto real que hace el orquestador no coincide con esa intención: `wc -l /etc/passwd` cae a la ruta generativa y `ss -tulpn` a la determinista. El resultado es `builtin` 9/9, `read_small` 3/12 y `proc_scan` 12/6. Solo `builtin` sostiene un contraste con potencia. **Corregirlo —reasignar esos dos comandos a su bloque real— es el primer cambio a hacer antes de la ejecución definitiva de la memoria.**
+2. **La suite `paired` no estaba equilibrada por clase cuando se midió.** Estaba escrita para dar tres comandos por ruta en cada uno de los tres bloques, pero el reparto real del orquestador no coincidía con esa intención: `wc -l /etc/passwd` caía a la ruta generativa —`wc` solo está implementado como filtro de tubería, no como lectura de un fichero suelto— y `ss -tulpn` a la determinista, porque `ss` comparte el manejador de `netstat`. El resultado fue `builtin` 9/9, `read_small` 3/12 y `proc_scan` 12/6: solo `builtin` sostenía un contraste con potencia. **Ya está corregido en el código** —esos dos comandos se sustituyen por `cat /etc/hosts` (determinista, misma lectura corta) y `top -bn1` (generativa, mismo escaneo de `/proc`)—, pero **la ejecución versionada de [§8](#8-resultados-de-referencia) es anterior al arreglo y sigue llevando el desequilibrio**. Para que la corrección no se pierda otra vez, el desvío se comprueba ahora en tres sitios: `tests/test_core.py` resuelve los 18 comandos y verifica ruta y clase sin necesidad de Docker, el banco aborta antes de medir si la declaración está desequilibrada, y `RESULTS.md` estampa un aviso sobre la tabla estratificada si el marco no resolvió la suite como se declara.
 
 **Sobre la métrica de fidelidad.** El `fidelity_pass_pct` que aparece en `RESULTS.md` es una **comprobación de subcadenas** contra una lista de tokens esperados escrita a mano (`benchmarks/latency_benchmark.py:146`). Es reproducible por un tercero y sirve como prueba de regresión, pero **no mide que el engaño resulte creíble**: para la ruta determinista, que genera esas salidas desde plantillas, un 100 % es casi tautológico. La evaluación de credibilidad requiere adversario y juez ciego, y se aborda en [§12](#12-emulación-de-adversarios-y-credibilidad).
 
@@ -293,7 +293,20 @@ La lectura honesta para la memoria es por tanto:
 
 > La normalización cierra el canal lateral temporal **en la clase donde hay potencia para contrastarlo** (`builtin`) y **no lo cierra** en `proc_scan`, donde la salida generativa es lo bastante larga como para desbordar el presupuesto. El resultado global de indistinguibilidad no debe citarse sin esta salvedad.
 
-Es un resultado accionable, no un fracaso: el desbordamiento se ataca bajando `MAX_TOKENS` para esa clase de comandos o subiendo su objetivo de clase en `CLASS_PROFILE`. Antes de la ejecución definitiva conviene además corregir el desequilibrio de la suite descrito en [§7](#7-qué-es-reproducible-y-qué-no) y subir a `--repeat 5` o más.
+Es un resultado accionable, no un fracaso, y la acción ya está implementada —pero **estas cifras son anteriores a ella y no la reflejan**.
+
+**El arreglo: presupuesto de generación por clase.** El desbordamiento tiene una única causa mecánica, visible en el CSV: las seis muestras de `lsblk` y `vmstat 1 1` agotan las 64 unidades de `MAX_TOKENS`, y una respuesta que sigue escribiéndose cuando su objetivo ya venció no se puede rellenar hacia atrás. `agents/core/latency.py::GenerationBudget` convierte ahora el objetivo sorteado en un presupuesto de tokens antes de llamar al modelo, a partir del mismo modelo de coste que fija ese objetivo:
+
+```text
+llm_ms  ≈  evaluación del prompt  +  tokens × ms por token
+tokens  =  (objetivo × GEN_SAFETY − evaluación del prompt) / ms por token
+```
+
+Los dos términos no se suponen: Ollama los devuelve en cada respuesta y el presupuesto los reestima con una media móvil, de modo que **se ajusta a la máquina en la que corre** en vez de dar por buenas las cifras de [§4](#4-entorno-de-referencia). Cuando el resultado no llega al suelo de plausibilidad (`GEN_MIN_TOKENS`), el problema es el término fijo y no el marginal, así que se recorta primero el contexto replicado —menos turnos y truncado más duro, que es lo único que baja el coste de evaluar el prompt— y solo después se responde igualmente al suelo, marcando el plan como `gen_feasible=false` para que ese desbordamiento quede atribuido en la telemetría en lugar de aparecer sin explicación.
+
+Con la calibración que se desprende de la propia ejecución de referencia (~39 ms/token, ~260 ms de evaluación de prompt), el presupuesto proyecta unos 600 ms para los comandos de `proc_scan` frente a objetivos de 740–970 ms: dentro de banda. **Lo que se paga es fidelidad**, y esta vez es medible: el CSV registra ahora `prompt_eval_ms`, `eval_ms`, `gen_max_tokens` y `output_bytes`, así que la memoria puede enseñar la curva en vez de afirmarla. `GEN_MIN_TOKENS` es la perilla de ese compromiso.
+
+Antes de la ejecución definitiva quedan por hacer solo dos cosas, ambas mecánicas: subir a `--repeat 5` o más, y volver a lanzar el banco para que estas cifras reflejen el arreglo y la suite ya equilibrada de [§7](#7-qué-es-reproducible-y-qué-no).
 
 ---
 
@@ -347,7 +360,7 @@ tfm-generative-deception/
 │   ├── real_host/              Brazo de control (Debian + sshd real)
 │   └── results/                Transcripciones · veredictos · DECEPTION_EVAL.md
 ├── tests/
-│   ├── test_core.py            81 comprobaciones del núcleo (sin Docker ni Ollama)
+│   ├── test_core.py            102 comprobaciones del núcleo (sin Docker ni Ollama)
 │   ├── test_evaluation.py      56 del arnés de evaluación ciega
 │   └── test_comparison.py      19 del scoring de la comparativa (usa pytest)
 └── docs/                       Documentación técnica + demo.html
@@ -363,6 +376,7 @@ tfm-generative-deception/
 - [x] **Telemetría** — JSON Lines con mapeo MITRE ATT&CK y severidad; reglas de Wazuh **escritas**.
 - [x] **Despliegue del SIEM** — Wazuh 4.9.2 en el compose bajo el perfil `siem`; las 10 reglas validadas contra el manager real con `siem/validate_rules.py` (evidencia en `benchmarks/results/SIEM_VALIDATION.md`). Queda fuera el transporte desde un agente remoto y el panel.
 - [x] **Normalización de latencia** — relleno por clase de comando que hace las dos rutas indistinguibles por tiempo, validado con un test estadístico (KS + AUC + coeficiente de bimodalidad) en [`benchmarks/results/RESULTS.md`](benchmarks/results/RESULTS.md). Incluye la medición de consumo de CPU/RAM por contenedor en [`benchmarks/results/RESOURCES.md`](benchmarks/results/RESOURCES.md).
+- [x] **Presupuesto de generación por clase** — el relleno no puede quitar tiempo, así que el objetivo sorteado se traduce en un techo de tokens (y, si no basta, en un contexto reducido) antes de llamar al modelo, con los dos términos del coste calibrados sobre las respuestas reales. Ataca el único canal lateral interno que seguía abierto, la clase `proc_scan` de [§8](#8-resultados-de-referencia). **Implementado y cubierto por la suite offline; pendiente de la ejecución del banco que lo mida.**
 - [x] **Emulación de adversarios** — atacante LLM adaptativo y **juez ciego** contra un host Linux real como control, con acierto contrastado por test binomial y acuerdo entre dos jueces (Cohen κ). Arnés en `evaluation/`, metodología en [`docs/05_ADVERSARY_EMULATION.md`](docs/05_ADVERSARY_EMULATION.md). Ejecución de referencia completada con `qwen2.5:7b`: 16/16 transcripciones juzgadas, resultados y su lectura crítica en [§12](#12-emulación-de-adversarios-y-credibilidad).
 - [x] **Comparativa con Cowrie** — Cowrie 2.x en el compose bajo el perfil `compare`, interrogado con el mismo cliente SSH, las mismas credenciales y la misma batería de 30 comandos que el señuelo y el host real. Cuatro ejes medidos (cobertura, coherencia, tiempo hasta el primer byte y coste) en [`benchmarks/results/COMPARISON.md`](benchmarks/results/COMPARISON.md); ver [§13](#13-comparativa-con-un-honeypot-tradicional).
 - [ ] **Futuro** — señuelos HTTP y FTP reutilizando el mismo orquestador.
@@ -537,7 +551,7 @@ docker compose exec deception-agent tail -f /app/data/logs/deception-events.json
 ### Si hay tiempo: las tres piezas de evaluación
 
 ```bash
-python tests/test_core.py                                  # 81/81, sin Docker, ~2 s
+python tests/test_core.py                                  # 102/102, sin Docker, ~2 s
 python benchmarks/latency_benchmark.py --suite paired --repeat 3   # regenera RESULTS.md
 docker compose --profile compare up -d cowrie              # el tercer brazo
 ```

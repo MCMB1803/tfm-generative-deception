@@ -29,6 +29,7 @@ from datetime import datetime
 from typing import Any
 
 from core import config
+from core.latency import GenerationBudget, GenerationPlan
 from core.llm import OllamaClient
 from core.session import Session
 from roles.artifacts import ArtifactAgent
@@ -78,14 +79,27 @@ class TerminalResult:
 class TerminalAgent:
     """Resolves shell commands against the persona, the artefacts and the LLM."""
 
-    def __init__(self, llm: OllamaClient, persona: Persona, artifacts: ArtifactAgent) -> None:
+    def __init__(self, llm: OllamaClient, persona: Persona, artifacts: ArtifactAgent,
+                 budget: GenerationBudget | None = None) -> None:
         self.llm = llm
         self.persona = persona
         self.artifacts = artifacts
         self.fs = artifacts.fs
+        # Owned by the orchestrator in production so its calibration is shared
+        # across sessions; defaulted here so the offline suite can build a
+        # terminal on its own.
+        self.budget = budget or GenerationBudget()
 
     # -- entry point -------------------------------------------------------
-    def resolve(self, session: Session, raw: str) -> TerminalResult:
+    def resolve(self, session: Session, raw: str,
+                target_ms: float | None = None) -> TerminalResult:
+        """Answer one command.
+
+        `target_ms` is the latency this command has been budgeted, drawn by the
+        normaliser before resolution starts. The generative route needs it to
+        size its token budget: an answer that is still being written when the
+        target elapses cannot be padded into place afterwards.
+        """
         start = time.perf_counter()
         command = raw.strip()
 
@@ -97,18 +111,19 @@ class TerminalAgent:
         # `cat /etc/passwd | grep root` on the deterministic route.
         head, filters = self._split_pipeline(command)
 
-        result = self._resolve_simple(session, head)
+        result = self._resolve_simple(session, head, target_ms)
         if filters and result.output:
             result.output = self._apply_filters(result.output, filters)
 
         result.total_ms = (time.perf_counter() - start) * 1000
         return result
 
-    def _resolve_simple(self, session: Session, command: str) -> TerminalResult:
+    def _resolve_simple(self, session: Session, command: str,
+                        target_ms: float | None = None) -> TerminalResult:
         det = self._deterministic(session, command)
         if det is not None:
             return det
-        return self._generative(session, command)
+        return self._generative(session, command, target_ms)
 
     # -- pipeline handling -------------------------------------------------
     @staticmethod
@@ -488,7 +503,8 @@ class TerminalAgent:
         return None  # defer to the generative layer
 
     # -- generative layer --------------------------------------------------
-    def _generative(self, session: Session, command: str) -> TerminalResult:
+    def _generative(self, session: Session, command: str,
+                    target_ms: float | None = None) -> TerminalResult:
         # A command already answered this session, over filesystem state that
         # has not changed since, must answer identically -- that is what a real
         # host does. Re-querying the model would produce a slightly different
@@ -500,17 +516,26 @@ class TerminalAgent:
             return TerminalResult(cached, "generative", handler="llm_cache",
                                   meta={"cache": "hit"})
 
+        # How much this command can afford to spend, given the latency it has
+        # already been budgeted. Without a target there is nothing to fit
+        # inside, so the global ceiling stands.
+        plan = self.budget.plan(command, target_ms) if target_ms else None
+
         messages = [{"role": "system",
                      "content": _SYSTEM_PROMPT.format(context=self.persona.context_block())}]
 
-        for turn in session.recent_context():
+        turns = plan.context_turns if plan else config.SESSION_CONTEXT_TURNS
+        chars = plan.context_chars if plan else config.GEN_CONTEXT_CHARS
+        for turn in session.recent_context(turns):
             messages.append({"role": "user", "content": turn.command})
             messages.append({"role": "assistant",
-                             "content": (turn.output or _NOOUT)[:600]})
+                             "content": (turn.output or _NOOUT)[:chars]})
 
         messages.append({"role": "user", "content": f"[cwd={session.cwd}] {command}"})
 
-        response = self.llm.chat(messages, stop=["\nuser:", "root@"])
+        response = self.llm.chat(messages,
+                                 max_tokens=plan.max_tokens if plan else None,
+                                 stop=["\nuser:", "root@"])
         if not response.ok:
             log.warning("Ruta generativa degradada para '%s': %s", command, response.error)
             # Fail closed into a plausible shell error rather than leaking the
@@ -521,13 +546,24 @@ class TerminalAgent:
                 llm_ok=False, meta={"error": response.error},
             )
 
+        # Feed the real cost back into the estimate before anything else: the
+        # budget is only as good as its last few observations, and a run that
+        # never learns keeps sizing every command off the seed constants.
+        if plan is not None:
+            self.budget.observe(eval_tokens=response.eval_tokens,
+                                eval_ms=response.eval_ms,
+                                prompt_eval_ms=response.prompt_eval_ms,
+                                lean=plan.lean)
+
         output = self._sanitise(response.text, command)
         session.gen_cache[key] = output
+        meta: dict[str, Any] = {"prompt_eval_ms": round(response.prompt_eval_ms, 1),
+                                "eval_ms": round(response.eval_ms, 1)}
+        if plan is not None:
+            meta.update(plan.as_telemetry())
         return TerminalResult(
             output, "generative", llm_ms=response.latency_ms,
-            eval_tokens=response.eval_tokens, handler="llm",
-            meta={"prompt_eval_ms": round(response.prompt_eval_ms, 1),
-                  "eval_ms": round(response.eval_ms, 1)},
+            eval_tokens=response.eval_tokens, handler="llm", meta=meta,
         )
 
     # -- output hygiene ----------------------------------------------------

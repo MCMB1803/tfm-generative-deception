@@ -147,6 +147,153 @@ def classify(command: str) -> str:
 
 
 @dataclass
+class GenerationPlan:
+    """What the generative route may spend answering one command."""
+
+    cls: str
+    target_ms: float
+    max_tokens: int
+    context_turns: int
+    context_chars: int
+    lean: bool
+    # False when prompt evaluation alone is projected to exceed the target, so
+    # no token budget can make this command fit. Reported, never hidden: it is
+    # the honest measure of where normalisation still cannot reach.
+    feasible: bool
+    projected_ms: float
+
+    def as_telemetry(self) -> dict[str, object]:
+        return {
+            "gen_max_tokens": self.max_tokens,
+            "gen_context_turns": self.context_turns,
+            "gen_lean_context": self.lean,
+            "gen_feasible": self.feasible,
+            "gen_projected_ms": round(self.projected_ms, 1),
+        }
+
+
+class GenerationBudget:
+    """Turns a latency target into a token budget, calibrated as it runs.
+
+    Why this exists
+    ---------------
+    `LatencyNormalizer` can only add time. If the model is still generating
+    when the target elapses the padding has nothing left to do, and that sample
+    stays separable no matter how good the cost model is. The reference run
+    measured exactly that: every `lsblk` and `vmstat 1 1` sample hit the 64
+    token ceiling and overran, and the `proc_scan` class came out separable at
+    AUC = 1.00 while the classes that fit came out indistinguishable.
+
+    The model
+    ---------
+    Generation time splits into a fixed and a marginal term::
+
+        llm_ms  ~=  prompt_eval(context)  +  tokens x ms_per_token
+
+    Both are measured -- Ollama reports them on every response -- so the budget
+    is fitted to the hardware it runs on rather than assuming the reference
+    machine's numbers::
+
+        tokens  =  (target x GEN_SAFETY - prompt_eval) / ms_per_token
+
+    When that comes out below `GEN_MIN_TOKENS` the fixed term is the problem,
+    not the marginal one, and no token budget can fix it. The lean context tier
+    is tried first, because a shorter prompt is the only way to move the fixed
+    term; if even that does not fit, the command is answered anyway at the
+    floor and flagged `feasible=False` so the overrun is attributable instead
+    of mysterious.
+
+    What it costs
+    -------------
+    Fidelity, and the report must say so: fewer tokens means a shorter, flatter
+    invented output, and a lean context means the model sees less of the
+    session it is supposed to stay coherent with.
+    """
+
+    def __init__(self) -> None:
+        self._ms_per_token = config.GEN_MS_PER_TOKEN
+        # One estimate per context tier: a lean prompt is cheaper to evaluate
+        # than a full one, and averaging the two together would make the lean
+        # tier look useless exactly when it is needed.
+        self._overhead_ms = {"full": config.GEN_PROMPT_OVERHEAD_MS,
+                             "lean": config.GEN_PROMPT_OVERHEAD_MS / 2}
+        self._samples = {"full": 0, "lean": 0}
+        self._token_samples = 0
+        self._lock = threading.Lock()
+
+    @property
+    def enabled(self) -> bool:
+        return config.GEN_BUDGET
+
+    # -- calibration -------------------------------------------------------
+    def observe(self, *, eval_tokens: int, eval_ms: float,
+                prompt_eval_ms: float, lean: bool) -> None:
+        """Fold one real response into the running estimate of both terms."""
+        tier = "lean" if lean else "full"
+        alpha = config.GEN_EWMA_ALPHA
+        with self._lock:
+            if prompt_eval_ms > 0:
+                self._overhead_ms[tier] = (
+                    (1 - alpha) * self._overhead_ms[tier] + alpha * prompt_eval_ms)
+                self._samples[tier] += 1
+            # A response of one or two tokens is nearly all fixed cost, so its
+            # implied per-token rate is noise. Only rates from a run long
+            # enough to dominate the fixed term are worth learning from.
+            if eval_tokens >= 8 and eval_ms > 0:
+                rate = eval_ms / eval_tokens
+                self._ms_per_token = (1 - alpha) * self._ms_per_token + alpha * rate
+                self._token_samples += 1
+
+    # -- the plan ----------------------------------------------------------
+    def plan(self, command: str, target_ms: float) -> GenerationPlan:
+        cls = classify(command)
+
+        if not self.enabled:
+            return GenerationPlan(cls, target_ms, config.MAX_TOKENS,
+                                  config.SESSION_CONTEXT_TURNS,
+                                  config.GEN_CONTEXT_CHARS, False, True, 0.0)
+
+        with self._lock:
+            rate = self._ms_per_token
+            full_overhead = self._overhead_ms["full"]
+            lean_overhead = self._overhead_ms["lean"]
+
+        affordable_ms = target_ms * config.GEN_SAFETY
+
+        # Full context first: the lean tier is a concession, not a default.
+        tokens = int((affordable_ms - full_overhead) / rate)
+        lean = False
+        overhead = full_overhead
+        if tokens < config.GEN_MIN_TOKENS:
+            lean = True
+            overhead = lean_overhead
+            tokens = int((affordable_ms - lean_overhead) / rate)
+
+        tokens = max(config.GEN_MIN_TOKENS, min(config.MAX_TOKENS, tokens))
+
+        # Feasibility is judged on the plan that will actually run, not on the
+        # arithmetic before the floor was applied: a budget clamped up to
+        # GEN_MIN_TOKENS often still fits, and calling it infeasible would
+        # inflate the count of commands the framework admits it cannot hide.
+        projected_ms = overhead + tokens * rate
+        turns = config.GEN_LEAN_CONTEXT_TURNS if lean else config.SESSION_CONTEXT_TURNS
+        chars = config.GEN_LEAN_CONTEXT_CHARS if lean else config.GEN_CONTEXT_CHARS
+        return GenerationPlan(cls, target_ms, tokens, turns, chars, lean,
+                              projected_ms <= target_ms, projected_ms)
+
+    def as_dict(self) -> dict[str, object]:
+        with self._lock:
+            return {
+                "enabled": self.enabled,
+                "ms_per_token": round(self._ms_per_token, 2),
+                "prompt_overhead_ms": {k: round(v, 1)
+                                       for k, v in self._overhead_ms.items()},
+                "calibration_samples": dict(self._samples),
+                "rate_samples": self._token_samples,
+            }
+
+
+@dataclass
 class Normalization:
     """What normalisation did to one command."""
 
@@ -238,15 +385,22 @@ class LatencyNormalizer:
 
     # -- the enforcement ---------------------------------------------------
     def settle(self, command: str, session_id: str, elapsed_ms: float,
-               route: str = "") -> Normalization:
+               route: str = "",
+               drawn: tuple[float, str] | None = None) -> Normalization:
         """Sleep out the difference between elapsed time and the target.
 
         Called after the command has been resolved and before the answer goes
         back to the decoy. Blocking is correct here: the request already owns
         a worker thread, and a real host holds the connection open exactly the
         same way while it works.
+
+        `drawn` passes in a target already taken for this command. The draw
+        consumes the RNG, so taking it twice -- once to size the generation
+        budget and once here -- would pad towards a different number than the
+        one the budget was computed against, which is the one bug that would
+        quietly reopen the channel this module exists to close.
         """
-        target, cls = self.target_ms(command, session_id)
+        target, cls = drawn if drawn is not None else self.target_ms(command, session_id)
 
         if not self.enabled:
             return Normalization(target, elapsed_ms, 0.0, elapsed_ms > target, cls)

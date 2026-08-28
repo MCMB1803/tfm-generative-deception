@@ -33,7 +33,13 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-import requests
+# Deferred rather than hard: the command tables and the balance check below are
+# pure data and the offline suite verifies them without a network stack. Only
+# the client actually needs `requests`, and it says so when it is missing.
+try:
+    import requests
+except ImportError:  # pragma: no cover - exercised only without the dependency
+    requests = None  # type: ignore[assignment]
 
 from stats import (auc_mann_whitney, bimodality_coefficient,
                    ks_two_sample, verdict)
@@ -102,6 +108,16 @@ GENERATIVE_SEQUENCE: list[tuple[str, str, list[str]]] = [
 # (only `read_small` reaches both, with a single generative sample), so a
 # stratified comparison has nothing to compare and the global figure stays
 # confounded by the intrinsic cost of the commands themselves.
+#
+# The route annotations below are not aspirational. Two of them used to be:
+# `wc -l /etc/passwd` was written as deterministic but `wc` is only implemented
+# as a pipeline filter, so a standalone `wc FILE` falls to the model; and
+# `ss -tulpn` was written as generative but `ss` shares the `netstat` handler
+# and is answered from the persona. The result was read_small 3/12 and
+# proc_scan 12/6 -- only `builtin` had the balance the suite claims. They are
+# replaced here by `cat /etc/hosts` (deterministic, same single short read) and
+# `top -bn1` (generative, same /proc scan), and `assert_paired_balance()` now
+# fails the run if any block drifts out of balance again.
 PAIRED_SEQUENCE: list[tuple[str, str, list[str]]] = [
     # -- builtin: near-instant on a real host ------------------------------
     ("whoami",              "T1033",     ["root"]),      # deterministica
@@ -111,7 +127,7 @@ PAIRED_SEQUENCE: list[tuple[str, str, list[str]]] = [
     ("umask",               "T1082",     []),            # generativa
     ("alias",               "T1082",     []),            # generativa
     # -- read_small: one short file read -----------------------------------
-    ("wc -l /etc/passwd",   "T1087.001", []),            # deterministica
+    ("cat /etc/hosts",      "T1016",     ["127.0.0.1"]),  # deterministica
     ("head -3 /etc/passwd", "T1087.001", ["root"]),      # deterministica
     ("uname -r",            "T1082",     []),            # deterministica
     ("stat /etc/passwd",    "T1083",     []),            # generativa
@@ -121,17 +137,96 @@ PAIRED_SEQUENCE: list[tuple[str, str, list[str]]] = [
     ("ps aux",              "T1057",     []),            # deterministica
     ("df -h",               "T1082",     []),            # deterministica
     ("free -m",             "T1082",     []),            # deterministica
-    ("ss -tulpn",           "T1049",     []),            # generativa
+    ("top -bn1",            "T1057",     []),            # generativa
     ("lsblk",               "T1082",     []),            # generativa
     ("vmstat 1 1",          "T1082",     []),            # generativa
 ]
+
+# What each paired command is expected to do, so the run can verify it instead
+# of trusting the comment. Keyed by command; value is (cost class, route).
+PAIRED_EXPECTED: dict[str, tuple[str, str]] = {
+    "whoami":              ("builtin",    "deterministic"),
+    "pwd":                 ("builtin",    "deterministic"),
+    "hostname":            ("builtin",    "deterministic"),
+    "tty":                 ("builtin",    "generative"),
+    "umask":               ("builtin",    "generative"),
+    "alias":               ("builtin",    "generative"),
+    "cat /etc/hosts":      ("read_small", "deterministic"),
+    "head -3 /etc/passwd": ("read_small", "deterministic"),
+    "uname -r":            ("read_small", "deterministic"),
+    "stat /etc/passwd":    ("read_small", "generative"),
+    "file /etc/passwd":    ("read_small", "generative"),
+    "printenv HOME":       ("read_small", "generative"),
+    "ps aux":              ("proc_scan",  "deterministic"),
+    "df -h":               ("proc_scan",  "deterministic"),
+    "free -m":             ("proc_scan",  "deterministic"),
+    "top -bn1":            ("proc_scan",  "generative"),
+    "lsblk":               ("proc_scan",  "generative"),
+    "vmstat 1 1":          ("proc_scan",  "generative"),
+}
 
 SUITES = {"recon": RECON_SEQUENCE, "generative": GENERATIVE_SEQUENCE,
           "paired": PAIRED_SEQUENCE}
 
 
+def declared_balance() -> dict[str, dict[str, int]]:
+    """Deterministic/generative counts per class, from the declaration alone."""
+    counts: dict[str, dict[str, int]] = {}
+    for cls, route in PAIRED_EXPECTED.values():
+        counts.setdefault(cls, {"deterministic": 0, "generative": 0})[route] += 1
+    return counts
+
+
+def assert_paired_balance(samples: list[dict[str, Any]] | None = None) -> list[str]:
+    """Verify the paired suite is what it claims to be.
+
+    Two failures are possible and both silently destroy the stratified
+    comparison, which is the only reason this suite exists:
+
+    1. The declaration itself is unbalanced -- a class with 4 deterministic
+       commands and 2 generative ones cannot support a two-sample test.
+    2. The framework routes a command differently from the declaration, which
+       is what happened with `wc -l /etc/passwd` and `ss -tulpn` in the
+       reference run and left `read_small` at 3/12 and `proc_scan` at 12/6.
+
+    The first is checked from the table, the second against the run's own
+    samples. Returns the problems found; empty means the suite is sound.
+    """
+    problems: list[str] = []
+
+    for cls, counts in sorted(declared_balance().items()):
+        if counts["deterministic"] != counts["generative"]:
+            problems.append(
+                f"declaracion desequilibrada en la clase '{cls}': "
+                f"{counts['deterministic']} deterministicas / "
+                f"{counts['generative']} generativas")
+
+    if samples:
+        for s in samples:
+            if s.get("suite") != "paired":
+                continue
+            expected = PAIRED_EXPECTED.get(s["command"])
+            if expected is None:
+                continue
+            exp_cls, exp_route = expected
+            if s.get("route") != exp_route:
+                problems.append(
+                    f"'{s['command']}' se declara {exp_route} pero el marco la "
+                    f"resolvio por la ruta {s.get('route')}")
+            if s.get("cmd_class") != exp_cls:
+                problems.append(
+                    f"'{s['command']}' se declara de clase {exp_cls} pero el "
+                    f"marco la clasifico como {s.get('cmd_class')}")
+
+    # One line per distinct problem: a mis-routed command produces one per
+    # iteration otherwise, and the repetition hides how many commands are wrong.
+    return sorted(set(problems))
+
+
 class BenchmarkClient:
     def __init__(self, api: str) -> None:
+        if requests is None:
+            raise SystemExit("Falta la dependencia 'requests': pip install requests")
         self.api = api.rstrip("/")
         self.http = requests.Session()
 
@@ -220,6 +315,15 @@ def run_scenario(client: BenchmarkClient, scenario: str, repeat: int,
                 "llm_ms": result.get("llm_ms", 0.0),
                 "wall_ms": round(result["wall_ms"], 3),
                 "eval_tokens": result.get("eval_tokens", 0),
+                # The two terms of the generation cost, kept apart: an overrun
+                # caused by prompt evaluation is not fixable by cutting tokens,
+                # and the reference run could not tell the two cases apart.
+                "prompt_eval_ms": result.get("prompt_eval_ms", 0.0),
+                "eval_ms": result.get("eval_ms", 0.0),
+                "gen_max_tokens": result.get("gen_max_tokens"),
+                "gen_lean_context": result.get("gen_lean_context"),
+                "gen_feasible": result.get("gen_feasible"),
+                "gen_projected_ms": result.get("gen_projected_ms"),
                 "within_target": result.get("within_target", False),
                 "fidelity_pass": passed,
                 "fidelity_missing": ";".join(missing),
@@ -394,6 +498,18 @@ def write_markdown(summary: dict[str, Any], samples: list[dict[str, Any]], path:
             f"{summary['rerender_note']}",
             "",
         ]
+    # A stratified table computed over an unbalanced suite looks exactly like
+    # one computed over a balanced suite. Saying so here is the only thing that
+    # stops the number being quoted as if it had power behind it.
+    if summary.get("paired_balance_problems"):
+        lines += [
+            "> **La suite `paired` no se resolvio como se declara en esta "
+            "ejecucion.** La estratificacion por clase de la seccion 3 no tiene "
+            "la potencia que aparenta y no debe citarse sin esta salvedad:",
+            "",
+        ]
+        lines += [f"> - {problem}" for problem in summary["paired_balance_problems"]]
+        lines += [""]
     lines += [
         "## 1. Resumen global",
         "",
@@ -522,6 +638,15 @@ def main() -> int:
     parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args()
 
+    # Fail before spending minutes of inference: a suite that is unbalanced on
+    # paper cannot produce a stratified comparison no matter how it runs.
+    declared = assert_paired_balance()
+    if declared:
+        print("ERROR: la suite 'paired' esta mal declarada:", file=sys.stderr)
+        for problem in declared:
+            print(f"  - {problem}", file=sys.stderr)
+        return 1
+
     client = BenchmarkClient(args.api)
     print(f"Conectando al orquestador en {args.api} ...")
     if not client.wait_ready():
@@ -548,7 +673,20 @@ def main() -> int:
         print("ERROR: no se recogio ninguna muestra.", file=sys.stderr)
         return 1
 
+    # The declaration was sound; now check the framework agreed with it. This
+    # is reported rather than fatal: the samples are still valid measurements,
+    # but any stratified figure derived from an unbalanced class must not be
+    # cited without this warning.
+    drift = assert_paired_balance(samples)
+    if drift:
+        print("\nAVISO: la suite 'paired' no se resolvio como se declara:")
+        for problem in drift:
+            print(f"  - {problem}")
+        print("  La estratificacion por clase queda comprometida; corrigelo "
+              "antes de citar estas cifras.\n")
+
     summary = summarise(samples, target_ms)
+    summary["paired_balance_problems"] = drift
     summary["environment"] = {
         "model": stats.get("model"),
         "persona": stats["persona"],

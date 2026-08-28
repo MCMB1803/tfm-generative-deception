@@ -22,8 +22,8 @@ os.environ.setdefault("LATENCY_LOG", os.path.join(tempfile.mkdtemp(), "latency.j
 
 from core import config                     # noqa: E402
 from core import mitre                      # noqa: E402
-from core.latency import (CLASS_PROFILE, LatencyNormalizer,  # noqa: E402
-                          classify)
+from core.latency import (CLASS_PROFILE, GenerationBudget,  # noqa: E402
+                          LatencyNormalizer, classify)
 from core.llm import LLMResponse            # noqa: E402
 from core.session import SessionStore       # noqa: E402
 from roles.artifacts import ArtifactAgent   # noqa: E402
@@ -290,6 +290,115 @@ def main() -> int:
           f"{StubLLM.calls} vs {calls_before}")
     sess2.add_file("/root/nuevo.txt", "x")
     check("una escritura invalida la cache", not sess2.gen_cache)
+
+    # -- generation budget ------------------------------------------------
+    # Padding cannot take time back, so the only defence against an overrun is
+    # to have generated less. These check the arithmetic that decides how much
+    # less, and that it degrades in the right order: tokens first, then the
+    # prompt, and only then an honest admission that it does not fit.
+    print("\n== Presupuesto de generacion ==")
+    budget = GenerationBudget()
+
+    generous = budget.plan("lsblk", 5000.0)
+    check("un objetivo holgado no recorta por debajo del techo global",
+          generous.max_tokens == config.MAX_TOKENS, str(generous.max_tokens))
+    check("un objetivo holgado no necesita contexto reducido", not generous.lean)
+
+    tight = budget.plan("lsblk", 750.0)
+    check("el objetivo real de proc_scan recorta los tokens",
+          tight.max_tokens < config.MAX_TOKENS,
+          f"{tight.max_tokens} vs {config.MAX_TOKENS}")
+    check("el recorte respeta el minimo de plausibilidad",
+          tight.max_tokens >= config.GEN_MIN_TOKENS, str(tight.max_tokens))
+    check("un objetivo mas holgado nunca concede menos tokens que uno estricto",
+          budget.plan("lsblk", 2000.0).max_tokens >= tight.max_tokens)
+
+    impossible = budget.plan("lsblk", 120.0)
+    check("cuando no cabe con contexto completo se pasa al contexto reducido",
+          impossible.lean)
+    check("el contexto reducido replica menos turnos",
+          impossible.context_turns < config.SESSION_CONTEXT_TURNS,
+          str(impossible.context_turns))
+    check("lo que no cabe se declara infactible en vez de ocultarse",
+          not impossible.feasible)
+    check("un plan infactible se responde igualmente, al minimo",
+          impossible.max_tokens == config.GEN_MIN_TOKENS,
+          str(impossible.max_tokens))
+    check("la telemetria del plan expone el presupuesto aplicado",
+          impossible.as_telemetry()["gen_max_tokens"] == impossible.max_tokens)
+
+    # Calibration: a slower machine must produce a smaller budget for the same
+    # target, because the estimate is fitted rather than assumed.
+    before = budget.plan("lsblk", 750.0).max_tokens
+    for _ in range(20):
+        budget.observe(eval_tokens=64, eval_ms=64 * 45.0,
+                       prompt_eval_ms=260.0, lean=False)
+    after = budget.plan("lsblk", 750.0).max_tokens
+    check("una maquina mas lenta recibe un presupuesto menor",
+          after < before, f"{after} vs {before}")
+    check("la calibracion queda registrada",
+          budget.as_dict()["rate_samples"] == 20,
+          str(budget.as_dict()["rate_samples"]))
+
+    fast = GenerationBudget()
+    for _ in range(20):
+        fast.observe(eval_tokens=2, eval_ms=2 * 900.0,
+                     prompt_eval_ms=240.0, lean=False)
+    check("una respuesta de dos tokens no contamina el ritmo estimado",
+          fast.as_dict()["rate_samples"] == 0,
+          str(fast.as_dict()["rate_samples"]))
+
+    # -- the target is drawn once ----------------------------------------
+    # The budget is fitted to a target; padding to a *different* target would
+    # silently reopen the timing channel this whole module exists to close.
+    print("\n== El objetivo se sortea una sola vez ==")
+    norm2 = LatencyNormalizer(seed=1803)
+    drawn = norm2.target_ms("lsblk", "sesion-fija")
+    settled = norm2.settle("lsblk", "sesion-fija", 10_000.0, route="generative",
+                           drawn=drawn)
+    check("el relleno usa el objetivo ya sorteado",
+          abs(settled.target_ms - drawn[0]) < 1e-9,
+          f"{settled.target_ms} vs {drawn[0]}")
+    check("y su clase", settled.cls == drawn[1])
+
+    # -- the paired suite is what it claims to be -------------------------
+    # The reference run measured a suite whose comments were wrong: two
+    # commands took the opposite route to the one declared, which left
+    # read_small at 3/12 and proc_scan at 12/6 and quietly destroyed the
+    # stratified comparison. Nothing about that needed Docker to detect --
+    # the real routing decision is available right here -- so it is checked
+    # here, where it fails in seconds instead of after a benchmark run.
+    print("\n== Equilibrio de la suite emparejada ==")
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "benchmarks"))
+    from latency_benchmark import (PAIRED_EXPECTED,  # noqa: E402
+                                   PAIRED_SEQUENCE, assert_paired_balance)
+
+    check("la declaracion de la suite esta equilibrada por clase",
+          not assert_paired_balance(), "; ".join(assert_paired_balance()))
+    check("cada comando emparejado esta declarado",
+          {c for c, _, _ in PAIRED_SEQUENCE} == set(PAIRED_EXPECTED),
+          str({c for c, _, _ in PAIRED_SEQUENCE} ^ set(PAIRED_EXPECTED)))
+
+    observed: dict[str, dict[str, int]] = {}
+    mismatches: list[str] = []
+    for command, (exp_cls, exp_route) in PAIRED_EXPECTED.items():
+        probe = store.create("10.42.99.97", 4243)
+        route = terminal.resolve(probe, command).route
+        cls = classify(command)
+        if route != exp_route:
+            mismatches.append(f"{command}: ruta {route} != {exp_route}")
+        if cls != exp_cls:
+            mismatches.append(f"{command}: clase {cls} != {exp_cls}")
+        observed.setdefault(cls, {"deterministic": 0, "generative": 0})
+        observed[cls][route] = observed[cls].get(route, 0) + 1
+
+    check("cada comando toma la ruta y la clase que declara",
+          not mismatches, "; ".join(mismatches))
+    for cls in sorted(observed):
+        counts = observed[cls]
+        check(f"la clase '{cls}' queda equilibrada 3/3",
+              counts["deterministic"] == counts["generative"] == 3,
+              f"{counts['deterministic']} det / {counts['generative']} gen")
     print("\n" + "=" * 60)
     total = PASSED + len(FAILED)
     print(f"{PASSED}/{total} comprobaciones superadas")

@@ -56,6 +56,43 @@ LATENCY_RTT_SIGMA = _float("LATENCY_RTT_SIGMA", 0.25)
 # outlier from being as conspicuous as the bimodality it replaced.
 LATENCY_TAIL_CAP = _float("LATENCY_TAIL_CAP", 6.0)
 
+# --- Generation budget ------------------------------------------------------
+# Padding can only add time. When the model is still writing after its target
+# has elapsed the sample stays distinguishable, and in the reference run that
+# was the whole of the residual leak: `lsblk` and `vmstat 1 1` both saturated
+# MAX_TOKENS=64 and overran their ~750 ms target by 500-2200 ms, which made the
+# `proc_scan` class separable at AUC 1.00. The fix is to spend fewer tokens on
+# the classes that cannot afford them, and a leaner prompt when even that is
+# not enough. See core/latency.py::GenerationBudget.
+GEN_BUDGET = os.getenv("GEN_BUDGET", "true").lower() in ("1", "true", "yes")
+
+# Never generate fewer than this, whatever the arithmetic says: below roughly a
+# line of output the answer stops being plausible and the content tell replaces
+# the timing tell.
+GEN_MIN_TOKENS = _int("GEN_MIN_TOKENS", 12)
+
+# Fraction of the target the generative route may plan to consume. The rest
+# absorbs the variance the estimate cannot predict.
+GEN_SAFETY = _float("GEN_SAFETY", 0.75)
+
+# Seed values for the two terms of the cost model, in ms. Both are re-estimated
+# from the responses the model actually returns, so these only matter for the
+# first few commands of a run; the defaults are the reference machine's
+# measured figures (~12 ms/token generated, ~250 ms to evaluate a full prompt).
+GEN_MS_PER_TOKEN = _float("GEN_MS_PER_TOKEN", 12.0)
+GEN_PROMPT_OVERHEAD_MS = _float("GEN_PROMPT_OVERHEAD_MS", 250.0)
+
+# Weight of a new observation in the running estimate of both terms.
+GEN_EWMA_ALPHA = _float("GEN_EWMA_ALPHA", 0.3)
+
+# Context replayed to the model, full and lean. The lean tier is used when the
+# full one cannot fit the target: fewer turns and harder truncation cut prompt
+# evaluation, which is the floor no token budget can get under. It costs
+# session coherence, which is the trade the whole chapter is about.
+GEN_CONTEXT_CHARS = _int("GEN_CONTEXT_CHARS", 600)
+GEN_LEAN_CONTEXT_TURNS = _int("GEN_LEAN_CONTEXT_TURNS", 2)
+GEN_LEAN_CONTEXT_CHARS = _int("GEN_LEAN_CONTEXT_CHARS", 160)
+
 # --- Persona ----------------------------------------------------------------
 PERSONA_PROFILE = os.getenv("PERSONA_PROFILE", "corporate-web-server")
 PERSONA_CACHE = os.getenv("PERSONA_CACHE", "/app/data/persona.json")

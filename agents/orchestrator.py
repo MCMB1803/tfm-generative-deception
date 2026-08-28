@@ -20,7 +20,7 @@ import time
 from typing import Any
 
 from core import config
-from core.latency import LatencyNormalizer
+from core.latency import GenerationBudget, LatencyNormalizer
 from core.llm import OllamaClient
 from core.session import Session, SessionStore
 from core.telemetry import emit_event, emit_latency
@@ -41,6 +41,7 @@ class DeceptionOrchestrator:
         # Holds every answer until its command-derived target has elapsed,
         # so response time never leaks which route produced it.
         self.normalizer = LatencyNormalizer()
+        self.gen_budget = GenerationBudget()
         self.persona = None
         self.artifacts: ArtifactAgent | None = None
         self.terminal: TerminalAgent | None = None
@@ -74,7 +75,8 @@ class DeceptionOrchestrator:
         self.artifacts.build()
         self.artifacts.start_traffic()
 
-        self.terminal = TerminalAgent(self.llm, self.persona, self.artifacts)
+        self.terminal = TerminalAgent(self.llm, self.persona, self.artifacts,
+                                      budget=self.gen_budget)
         self.alerts = AlertAgent(honeytoken_matcher=self.artifacts.match_honeytoken)
 
         self.boot_ms = (time.perf_counter() - start) * 1000
@@ -134,7 +136,14 @@ class DeceptionOrchestrator:
         if session is None:
             raise KeyError(f"sesion desconocida: {session_id}")
 
-        result = self.terminal.resolve(session, command)  # type: ignore[union-attr]
+        # The target is drawn once, here, and used twice: to size the
+        # generative token budget before the model runs, and to pad afterwards.
+        # Drawing it separately in each place would consume the RNG twice and
+        # pad towards a different number than the one the budget was fitted to.
+        drawn = self.normalizer.target_ms(command, session.session_id)
+
+        result = self.terminal.resolve(session, command,  # type: ignore[union-attr]
+                                       target_ms=drawn[0])
 
         # Everything above is internal cost; everything the attacker can
         # measure is decided here. `compute_ms` stays for diagnostics, but the
@@ -142,7 +151,7 @@ class DeceptionOrchestrator:
         # observed latency after normalisation.
         compute_ms = result.total_ms
         norm = self.normalizer.settle(command, session.session_id, compute_ms,
-                                      route=result.route)
+                                      route=result.route, drawn=drawn)
         observed_ms = compute_ms + norm.slept_ms
 
         from core.session import Turn  # local import keeps the module graph flat
@@ -179,6 +188,15 @@ class DeceptionOrchestrator:
             "compute_ms": round(compute_ms, 3),
             "llm_ms": round(result.llm_ms, 3),
             "eval_tokens": result.eval_tokens,
+            # The generative cost split and the budget that shaped it: the
+            # benchmark stratifies on these to show whether an overrun came
+            # from prompt evaluation or from generation.
+            "prompt_eval_ms": result.meta.get("prompt_eval_ms", 0.0),
+            "eval_ms": result.meta.get("eval_ms", 0.0),
+            "gen_max_tokens": result.meta.get("gen_max_tokens"),
+            "gen_lean_context": result.meta.get("gen_lean_context"),
+            "gen_feasible": result.meta.get("gen_feasible"),
+            "gen_projected_ms": result.meta.get("gen_projected_ms"),
             "cwd": session.cwd,
             "prompt": self.prompt(session_id),
             "within_target": observed_ms <= config.LATENCY_TARGET_MS,
@@ -215,6 +233,7 @@ class DeceptionOrchestrator:
             "latency_target_ms": config.LATENCY_TARGET_MS,
             "latency_normalization": {
                 "enabled": self.normalizer.enabled,
+                "generation_budget": self.gen_budget.as_dict(),
                 **self.normalizer.stats.as_dict(),
             },
         }
