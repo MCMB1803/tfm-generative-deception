@@ -183,22 +183,39 @@ Esa ejecución es la **línea base sin normalizar** del capítulo 4 y produce la
 
 ## 5. Fijar las versiones
 
-Por defecto el proyecto usa etiquetas móviles (`ollama/ollama:latest`, `qwen2.5-coder:0.5b`). Es cómodo para desarrollar y **malo para reproducir**: dentro de seis meses esas etiquetas apuntan a otro artefacto. Antes de la ejecución que vaya a citarse en la memoria, registra los identificadores exactos:
+Las versiones están fijadas en el repositorio. No hay ninguna etiqueta móvil en la ruta que produce las cifras de la memoria:
+
+| Componente | Cómo está fijado |
+|---|---|
+| Imagen de Ollama | `ollama/ollama@sha256:32931b46…269eb2` (digest, no `:latest`) |
+| Imagen de Cowrie | `cowrie/cowrie@sha256:42e01e0e…740d44` (digest, no `:latest`) |
+| Wazuh manager | `wazuh/wazuh-manager:4.9.2` |
+| Paquetes de Python | `==` en los tres `requirements.txt` |
+| Modelo de lenguaje | `qwen2.5-coder:0.5b` — **la única etiqueta móvil que queda** |
+
+Los digests y los pines de PyPI se fijaron el **2026-09-04**, con las versiones que estaban publicadas en la fecha de la ejecución de referencia (2026-08-22).
+
+**El modelo es la excepción y hay que declararla.** `ollama pull` no acepta digests, así que `qwen2.5-coder:0.5b` sigue siendo una etiqueta que puede reapuntar. Registra su identificador junto a los resultados:
 
 ```bash
-# Digest de la imagen de Ollama
-docker image inspect ollama/ollama:latest --format "{{index .RepoDigests 0}}"
-
-# Identificador del modelo descargado
 docker exec ollama_llm ollama list
 docker exec ollama_llm ollama show qwen2.5-coder:0.5b --modelfile | head -5
-
-# Versiones del entorno
 docker version --format "{{.Server.Version}}"
 docker compose version
 ```
 
-Anota la salida junto a los resultados. Para clavar la imagen, sustituye en `docker-compose.yml` `ollama/ollama:latest` por `ollama/ollama@sha256:<digest>`.
+**Para regenerar el pin exacto** desde los contenedores que produjeron las cifras, en lugar de las versiones inferidas por fecha:
+
+```bash
+docker compose exec deception-agent pip freeze > agents/requirements.txt
+docker compose exec ssh-decoy      pip freeze > decoys/ssh/requirements.txt
+```
+
+Y para refrescar el digest de una imagen si alguna vez hay que actualizarla:
+
+```bash
+docker image inspect ollama/ollama:latest --format "{{index .RepoDigests 0}}"
+```
 
 ---
 

@@ -1,2 +1,5 @@
-paramiko>=3.4
-requests>=2.31
+# Versiones fijadas para la entrega (2026-09-04). Ver nota en agents/requirements.txt.
+# Este fichero se instala en el anfitrion, no en un contenedor:
+#     pip install -r evaluation/requirements.txt
+paramiko==5.0.0
+requests==2.34.2

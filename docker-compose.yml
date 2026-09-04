@@ -17,7 +17,7 @@ volumes:
 services:
   # --- Motor de inferencia local -------------------------------------------
   ollama-llm:
-    image: ollama/ollama:latest
+    image: ollama/ollama@sha256:32931b46719f673c05fdbaa81ccb26da18ea4a1c57590a754874ab28ba269eb2
     container_name: ollama_llm
     # Publicado solo en loopback: necesario para el benchmark desde el host,
     # nunca expuesto a la red externa.
@@ -42,7 +42,7 @@ services:
 
   # --- Descarga del modelo (job de un solo uso) ----------------------------
   model-puller:
-    image: ollama/ollama:latest
+    image: ollama/ollama@sha256:32931b46719f673c05fdbaa81ccb26da18ea4a1c57590a754874ab28ba269eb2
     container_name: ollama_model_puller
     depends_on:
       ollama-llm:
@@ -187,7 +187,7 @@ services:
   # no al procedimiento de medida, que es la condicion que exige el apartado
   # 4.4 de la memoria.
   cowrie:
-    image: cowrie/cowrie:latest
+    image: cowrie/cowrie@sha256:42e01e0e5fe705a0a63dacc0f1992b2d230740ac149af7675f48197abf740d44
     container_name: compare_cowrie
     profiles: ["compare"]
     hostname: srv-app-04

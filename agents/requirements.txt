@@ -1,4 +1,10 @@
-requests>=2.31.0
-fastapi>=0.110.0
-uvicorn[standard]>=0.29.0
-pydantic>=2.6.0
+# Versiones fijadas para la entrega (2026-09-04).
+# Verificadas contra el entorno que ejecuta la suite offline (.venv-test), no
+# inferidas: coinciden con lo que resolvia la instalacion en la fecha de la
+# ejecucion de referencia del banco de pruebas (2026-08-22).
+# Para regenerar el pin desde el contenedor en marcha:
+#     docker compose exec deception-agent pip freeze > agents/requirements.txt
+requests==2.34.2
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+pydantic==2.13.4
