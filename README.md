@@ -36,7 +36,7 @@ Señuelo SSH de ciberengaño dinámico guiado por una arquitectura multi-agente 
   - [14. Trazabilidad: qué respalda cada apartado de la memoria](#14-trazabilidad-qué-respalda-cada-apartado-de-la-memoria)
     - [Qué queda fuera, declarado](#qué-queda-fuera-declarado)
   - [15. Demostración en vivo](#15-demostración-en-vivo)
-    - [Antes de empezar (hazlo el día antes, no delante del tribunal)](#antes-de-empezar-hazlo-el-día-antes-no-delante-del-tribunal)
+    - [Antes de empezar](#antes-de-empezar)
     - [El guion](#el-guion)
     - [El lado del defensor (la mitad que se olvida enseñar)](#el-lado-del-defensor-la-mitad-que-se-olvida-enseñar)
     - [Si hay tiempo: las tres piezas de evaluación](#si-hay-tiempo-las-tres-piezas-de-evaluación)
@@ -521,11 +521,9 @@ Ninguno de estos puntos es un olvido: se declaran como limitación en lugar de o
 
 ## 15. Demostración en vivo
 
-Guion para enseñar el sistema funcionando delante de alguien, en unos 12 minutos. Cada paso dice **qué escribir**, **qué debe salir** y **qué se está demostrando**, para poder narrarlo mientras corre.
-
 **Versión visual:** [`docs/demo.html`](docs/demo.html) — se abre con doble clic, sin servidor ni conexión. Arquitectura, flujo de una interacción, resultados medidos y este mismo guion paso a paso.
 
-### Antes de empezar (hazlo el día antes, no delante del tribunal)
+### Antes de empezar
 
 ```bash
 docker compose up -d --build          # la primera vez baja ~400 MB de modelo
